@@ -3,285 +3,36 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Video Recorder</title>
-    <link href="https://fonts.cdnfonts.com/css/switzer" rel="stylesheet">
-                
-    <style>
-        /* Your existing CSS remains the same */
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            min-height: 100vh;
-            margin: 0;
-            padding: 0;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background-color: #fff;
-            background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop stop-color="%23fff" offset="0%"/><stop stop-color="%23eee" offset="100%"/></linearGradient><rect width="100%" height="100%" fill="url(%23g)"/></svg>');
-            background-size: cover;
-        }
-
-        .container {
-            width: 100%;
-            max-width: 800px;
-            padding: 20px;
-        }
-
-        .video-section {
-            position: relative;
-            width: 100%;
-            max-width: 640px;
-            margin: 0 auto;
-        }
-
-        #videoPreview {
-            width: 100%;
-            height: 480px;
-            background: #000;
-            border-radius: 15px;
-            display: block;
-        }
-
-        .countdown {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            font-size: 10rem;
-            font-weight: 800;
-            color: rgba(255, 255, 255, 0.9);
-            margin: 0;
-            opacity: 0;
-            z-index: 10;
-            letter-spacing: -0.02em;
-        }
-
-        .countdown.show {
-            opacity: 1;
-        }
-
-        .timer {
-            position: absolute;
-            bottom: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            font-size: 1.5rem;
-            font-weight: bold;
-            color: white;
-            background: rgba(0, 0, 0, 0.5);
-            padding: 10px 20px;
-            border-radius: 20px;
-            z-index: 10;
-        }
-
-        .recording-indicator {
-            display: inline-block;
-            width: 12px;
-            height: 12px;
-            background: #ff4757;
-            border-radius: 50%;
-            margin-right: 10px;
-            animation: pulse 1s infinite;
-        }
-
-        @keyframes pulse {
-            0% { opacity: 1; }
-            50% { opacity: 0.5; }
-            100% { opacity: 1; }
-        }
-
-        .hidden {
-            display: none;
-        }
-
-        .start-prompt {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            font-size: 2rem;
-            font-weight: 600;
-            color: rgba(255, 255, 255, 0.9);
-            background: rgba(0, 0, 0, 0.5);
-            padding: 20px 40px;
-            border-radius: 20px;
-            z-index: 10;
-            text-align: center;
-        }
-
-        .start-prompt .key {
-            display: inline-block;
-            background: white;
-            color: black;
-            padding: 5px 15px;
-            border-radius: 8px;
-            margin: 0 10px;
-            font-weight: 800;
-        }
-    </style>
+    <title>Marlies & Thomas Wedding Booth</title>
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div class="container">
-        <div class="video-section">
-            <video id="videoPreview" playsinline autoplay muted></video>
-            <div class="countdown" id="countdown"></div>
-            <div class="timer hidden" id="timer">
-                <span class="recording-indicator"></span>
-                REC: <span id="timeRemaining">1:00</span>
-            </div>
+
+    <div id="video">
+        <video src="sample.mp4" autoplay loop muted></video>
         </div>
-    </div>
 
-    <script>
-        let mediaRecorder;
-        let recordedChunks = [];
-        let stream;
-        let countdownInterval;
-        let recordingInterval;
-        let timeLeft = 60;
-        const maxRecordingTime = 60000; // 1 minute in milliseconds
+    <section id="section0">
+        <h1>Welcome to Marlies & Thomas's Wedding Booth!</h1>
+        <p>Press Enter to start.</p>
+    </section>
 
-        const videoPreview = document.getElementById('videoPreview');
-        const countdown = document.getElementById('countdown');
-        const timer = document.getElementById('timer');
-        const timeRemaining = document.getElementById('timeRemaining');
+    <section id="section1">
+        <div id="prompt"></div>
+        <div id="timer_section1"></div>
+        <div id="record_timer"></div>
+    </section>
 
-        // Initialize camera
-        async function initCamera() {
-            try {
-                stream = await navigator.mediaDevices.getUserMedia({ 
-                    video: { width: 640, height: 480 }, 
-                    audio: true 
-                });
-                videoPreview.srcObject = stream;
-            } catch (error) {
-                console.error('Error accessing camera:', error);
-            }
-        }
+    <section id="section2">
+        <h1>Review your video!</h1>
+        <p>Short press Enter to continue, Long press Enter to re-record.</p>
+    </section>
 
-        // Add keyboard event listener
-        document.addEventListener('keydown', function(event) {
-            if (event.key === 'Enter') {
-                if (mediaRecorder && mediaRecorder.state === 'recording') {
-                    stopRecording();
-                } else if (!countdown.classList.contains('show') && !timer.classList.contains('show')) {
-                    startCountdown();
-                }
-            }
-        });
+    <section id="section3">
+        <h1>Thank you for your message!</h1>
+        <p>Short press Enter to record another message.</p>
+    </section>
 
-        function startCountdown() {
-            let count = 3;
-            countdown.textContent = count;
-            countdown.classList.add('show');
-            
-            countdownInterval = setInterval(() => {
-                count--;
-                if (count > 0) {
-                    countdown.textContent = count;
-                } else if (count === 0) {
-                    countdown.textContent = 'GO!';
-                    setTimeout(() => {
-                        countdown.classList.remove('show');
-                        startRecording();
-                    }, 500);
-                    clearInterval(countdownInterval);
-                }
-            }, 1000);
-        }
-
-        function startRecording() {
-            recordedChunks = [];
-            timeLeft = 60;
-            
-            // Try MP4 first, fall back to WebM if not supported
-            const options = { 
-                mimeType: 'video/mp4;codecs=h264,aac' 
-            };
-            
-            try {
-                mediaRecorder = new MediaRecorder(stream, options);
-            } catch (e) {
-                console.log('MP4 not supported, falling back to WebM');
-                mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
-            }
-            
-            mediaRecorder.ondataavailable = (event) => {
-                if (event.data.size > 0) {
-                    recordedChunks.push(event.data);
-                }
-            };
-            
-            mediaRecorder.onstop = () => {
-                clearInterval(recordingInterval);
-                timer.classList.add('hidden');
-                uploadVideo();
-            };
-            
-            mediaRecorder.start();
-            
-            timer.classList.remove('hidden');
-            updateTimer();
-            
-            recordingInterval = setInterval(() => {
-                timeLeft--;
-                updateTimer();
-                
-                if (timeLeft <= 0) {
-                    stopRecording();
-                }
-            }, 1000);
-            
-            setTimeout(() => {
-                if (mediaRecorder && mediaRecorder.state === 'recording') {
-                    stopRecording();
-                }
-            }, maxRecordingTime);
-        }
-
-        function updateTimer() {
-            const minutes = Math.floor(timeLeft / 60);
-            const seconds = timeLeft % 60;
-            timeRemaining.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
-        }
-
-        function stopRecording() {
-            if (mediaRecorder && mediaRecorder.state === 'recording') {
-                mediaRecorder.stop();
-            }
-        }
-
-        async function uploadVideo() {
-            const fileExtension = mediaRecorder.mimeType.includes('mp4') ? 'mp4' : 'webm';
-            const blob = new Blob(recordedChunks, { type: mediaRecorder.mimeType });
-            const formData = new FormData();
-            formData.append('video', blob, `recording.${fileExtension}`);
-            formData.append('filename', 'recording');
-            
-            try {
-                const response = await fetch('/api/upload', {
-                    method: 'POST',
-                    body: formData
-                });
-                
-                const result = await response.json();
-                
-                if (result.success) {
-                    // window.location.href = '/success.html';
-                }
-            } catch (error) {
-                console.error('Upload failed:', error);
-            }
-        }
-
-        // Initialize camera on page load
-        initCamera();
-    </script>
+    <script src="script.js"></script>
 </body>
 </html>
