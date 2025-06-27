@@ -1,13 +1,13 @@
 const sections = document.querySelectorAll('section');
-let currentSection = 0;
-
-
-// Store references to the specific elements
 const promptElement = document.getElementById('prompt');
-const timerElementSection1 = document.getElementById('timer_section1'); // Unique ID for section 1 timer
-const recordTimerElement = document.getElementById('record_timer'); // Assuming this is global for the recording countdown
-const videoContainer = document.getElementById('video'); // Main video container
+const timerElementSection1 = document.getElementById('timer_section1');
+const recordTimerElement = document.getElementById('record_timer');
+const videoContainer = document.getElementById('video');
+// Set the video element to the specified video and play it
+const videoDiv = document.getElementById('video');
+const screenshotContainer = document.getElementById('screenshot_container'); // New element to display screenshot
 
+let currentSection = 0;
 
 const prompts = [
     "Wat zijn de eigenschappen die Marlies in Thomas het meest bewonderen in elkaar?",
@@ -22,45 +22,16 @@ const prompts = [
     "Wat is hun domste gezamenlijke aankoop ooit?",
 ];
 
-// Global variables for media recording
 let mediaRecorder;
 let recordedChunks = [];
 let currentStream;
 let enterDisabled = false;
-
-// Variables for long press detection
-let enterPressTimer = null;
-const LONG_PRESS_THRESHOLD = 700; // milliseconds (e.g., 0.7 seconds)
-let isEnterKeyHeld = false; // To prevent multiple keydown triggers for auto-repeat
+let screenshotData = null; // Global variable to store screenshot data
 
 document.addEventListener('keydown', function(event) {
-    if (event.key === 'Enter' && !enterDisabled && !isEnterKeyHeld) {
-        isEnterKeyHeld = true; // Mark the key as held down
+    if (event.key === 'Enter' && !enterDisabled) {
         event.preventDefault(); // Prevent default browser behavior (e.g., form submission)
-
-        enterPressTimer = setTimeout(() => {
-            // This code runs if it's a long press
-            console.log('Long Enter press detected!');
-            handleLongEnterPress();
-            enterPressTimer = null; // Clear timer as action has been taken
-        }, LONG_PRESS_THRESHOLD);
-    }
-});
-
-document.addEventListener('keyup', function(event) {
-    if (event.key === 'Enter' && isEnterKeyHeld) {
-        isEnterKeyHeld = false; // Mark the key as released
-
-        if (enterPressTimer) {
-            // It was a short press if the timer is still active
-            clearTimeout(enterPressTimer);
-            enterPressTimer = null;
-            console.log('Short Enter press detected!');
-            handleShortEnterPress();
-        } else {
-            // If enterPressTimer is null, it means the long press action already fired
-            console.log('Enter key released after long press action.');
-        }
+        handleShortEnterPress();
     }
 });
 
@@ -74,27 +45,6 @@ function handleShortEnterPress() {
     executeStep(currentSection);
 }
 
-/**
- * Handles the logic for a long Enter press.
- * This will typically go back a step or perform a specific action
- * based on the currentSection.
- */
-function handleLongEnterPress() {
-    if (enterDisabled) return;
-
-    // Specific long press logic based on the current section
-    if (currentSection === 2) { // On the review screen (section 2)
-        console.log("Long press on Review Screen: Going back to prompt screen!");
-        currentSection = 1; // Go back to the initial prompt screen
-        stopAllStreams(); // Stop any playback or camera streams
-        enterDisabled = false; // Re-enable enter
-        // Clear any potentially lingering video elements from the previous recording for a clean restart
-        if (videoContainer) videoContainer.innerHTML = ''; // Clear all content in video container
-        window.recordedBlob = null; // Clear the recorded blob
-        executeStep(currentSection); // Execute the step after modifying currentSection
-    }
-    // You can add more long press specific actions for other sections here
-}
 
 /**
  * Executes the code associated with the given step (currentSection).
@@ -116,10 +66,20 @@ function executeStep(step) {
     switch (currentSection) {
         case 0: // Initial screen or reset
             console.log("Executing Step 0: Initial/Reset Screen");
+
+            if (videoDiv) {
+                videoDiv.innerHTML = '<video id="intro_video" src="babbelbox_3_goeie_2x_speed.mov" autoplay loop muted></video>';
+                const videoEl = videoDiv.querySelector('video');
+                if (videoEl) {
+                    videoEl.play().catch(() => {}); // In case autoplay is blocked, try to play
+                }
+            }
             // Ensure elements are cleared for a clean start
             if (promptElement) promptElement.textContent = '';
             if (timerElementSection1) timerElementSection1.textContent = '';
             if (recordTimerElement) recordTimerElement.textContent = ''; // Clear main recording timer as well
+            if (screenshotContainer) screenshotContainer.innerHTML = ''; // Clear previous screenshot
+            screenshotData = null; // Clear screenshot data on reset
 
             stopAllStreams();
             enterDisabled = false;
@@ -127,21 +87,16 @@ function executeStep(step) {
 
         case 1: // Display prompt and start countdown for recording
             console.log("Executing Step 1: Displaying Prompt & Starting Countdown");
+            enterDisabled = true;
 
-            // Use the pre-fetched element references. Add robust checks.
-            if (!promptElement) {
-                console.error("Prompt element is missing from the DOM for section 1.");
-                return;
-            }
-            if (!timerElementSection1) {
-                console.error("Timer element (timer_section1) is missing from the DOM for section 1.");
-                return;
+            if (videoDiv) {
+                videoDiv.style.display = 'none';
             }
 
             let randomPrompt = prompts[Math.floor(Math.random() * prompts.length)];
             promptElement.textContent = randomPrompt;
 
-            let countdown = 3;
+            let countdown = 5;
             timerElementSection1.textContent = countdown; // Use the specific timer for section 1
 
             if (window.countdownInterval) {
@@ -154,7 +109,7 @@ function executeStep(step) {
                     timerElementSection1.textContent = countdown;
                 } else if (countdown === 0) {
                     timerElementSection1.textContent = "go!";
-                    console.log('start recording');
+
                     startRecording();
                     enterDisabled = true; // Disable Enter during recording countdown and recording
                 } else if (countdown === -1) {
@@ -164,53 +119,65 @@ function executeStep(step) {
             }, 1000);
             break;
 
-        case 2: // Review screen (playback) - reached automatically after recording stops
-            console.log("Executing Step 2: Review Screen (Playback)");
-            // No direct action here for short press, handled by advanceToReviewScreen.
-            break;
-
-        case 3: // Success screen
-            console.log("Executing Step 3: Success Screen");
+        case 2: // Success screen with confetti and screenshot
+            console.log("Executing Step 2: Success Screen");
             stopAllStreams();
-            enterDisabled = false; // Re-enable Enter for the next cycle
+            enterDisabled = false;
 
             uploadVideo();
 
-            // Replace the video with the sample video
-            if (videoContainer) { // Ensure container exists
-                videoContainer.innerHTML = `
-                    <video src="sample.mp4" autoplay="true" loop="true" muted="true"></video>
-                    <div id="timer"></div>
-                    <div id="record_timer"></div>
-                `;
+            // Display the screenshot if available
+            if (screenshotData && screenshotContainer) {
+                screenshotContainer.innerHTML = ''; // Clear existing content
+                const img = document.createElement('img');
+                img.src = screenshotData;
+                img.alt = "Screenshot of your recording start";
+                img.style.maxWidth = "100%";
+                img.style.height = "auto";
+                img.style.display = "block";
+                img.style.margin = "20px auto";
+                screenshotContainer.appendChild(img);
             }
 
-            var duration = 30 * 1000;
+            // Confetti animation
+            var duration = 2000;
             var end = Date.now() + duration;
-            
-            (function frame() {
-              // launch a few confetti from the left edge
-              confetti({
-                particleCount: 7,
-                angle: 60,
-                spread: 55,
-                origin: { x: 0 }
-              });
-              // and launch a few from the right edge
-              confetti({
-                particleCount: 7,
-                angle: 120,
-                spread: 55,
-                origin: { x: 1 }
-              });
-            
-              // keep going until we are out of time
-              if (Date.now() < end) {
-                requestAnimationFrame(frame);
-              }
-            }());
 
+            if (typeof confetti === "function") {
+                confetti({
+                    particleCount: 200,
+                    spread: 120,
+                    origin: { y: 0.6 }
+                });
+                confetti({
+                    particleCount: 100,
+                    angle: 90,
+                    spread: 70,
+                    origin: { x: 0.5, y: 0 }
+                });
+                confetti({
+                    particleCount: 100,
+                    angle: 0,
+                    spread: 70,
+                    origin: { x: 0, y: 0.5 }
+                });
+                confetti({
+                    particleCount: 100,
+                    angle: 180,
+                    spread: 70,
+                    origin: { x: 1, y: 0.5 }
+                });
+                confetti({
+                    particleCount: 100,
+                    angle: 270,
+                    spread: 70,
+                    origin: { x: 0.5, y: 1 }
+                });
+            }
 
+            setTimeout(() => {
+                executeStep(0);
+            }, 5000);
             break;
 
         default:
@@ -226,15 +193,15 @@ async function uploadVideo() {
     const formData = new FormData();
     formData.append('video', blob, `recording.${fileExtension}`);
     formData.append('filename', 'recording');
-    
+
     try {
         const response = await fetch('/api/upload', {
             method: 'POST',
             body: formData
         });
-        
+
         const result = await response.json();
-        
+
         if (result.success) {
             // window.location.href = '/success.html';
         }
@@ -261,6 +228,8 @@ function startRecording() {
         oldVideo.remove();
     }
 
+    videoDiv.style.display = 'block';
+
     // Create new video element for webcam
     const videoElem = document.createElement('video');
     videoElem.setAttribute('autoplay', true);
@@ -286,6 +255,23 @@ function startRecording() {
             videoElem.muted = true; // Mute the LIVE preview (webcam)
 
             currentStream = stream;
+
+            // Take screenshot after the video stream is active
+            videoElem.onloadedmetadata = () => {
+                if (videoElem.videoWidth && videoElem.videoHeight) {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = videoElem.videoWidth;
+                    canvas.height = videoElem.videoHeight;
+                    const context = canvas.getContext('2d');
+                    context.drawImage(videoElem, 0, 0, canvas.width, canvas.height);
+                    screenshotData = canvas.toDataURL('image/png'); // Store the screenshot
+                    console.log('Screenshot taken!');
+                } else {
+                    console.warn('Video element has no dimensions yet, cannot take screenshot.');
+                }
+                videoElem.onloadedmetadata = null; // Remove the event listener
+            };
+
 
             // Check MediaRecorder support
             if (!MediaRecorder.isTypeSupported('video/webm')) {
@@ -315,7 +301,7 @@ function startRecording() {
             mediaRecorder.onstop = function() {
                 window.recordedBlob = new Blob(recordedChunks, { type: 'video/webm' });
                 console.log('Recording stopped, blob created');
-                advanceToReviewScreen(); // Automatically advance after recording stops
+                // The advanceToReviewScreen is now handled by the timer reaching 0 in startRecordingTimer
             };
 
             // Start recording
@@ -332,11 +318,6 @@ function startRecording() {
 
 function startRecordingTimer() {
     let recordCountdown = 10;
-
-    if (!recordTimerElement) { // Ensure element exists
-        console.error("Missing record_timer element. Cannot start recording timer.");
-        return;
-    }
 
     recordTimerElement.textContent = recordCountdown;
 
@@ -356,56 +337,12 @@ function startRecordingTimer() {
             // Stop recording when timer reaches 0
             if (mediaRecorder && mediaRecorder.state === "recording") {
                 mediaRecorder.stop();
+                executeStep(2); // Advance to the success screen here
             }
         }
     }, 1000);
 }
 
-function showPlaybackVideo() {
-    console.log('showPlaybackVideo called');
-    console.log('recordedBlob exists:', !!window.recordedBlob);
-
-
-    if (!videoContainer) {
-        console.error("Video container not found.");
-        return;
-    }
-
-    let playbackVideo = videoContainer.querySelector('video#playback');
-    console.log('existing playback video found:', !!playbackVideo);
-
-    if (!playbackVideo) {
-        playbackVideo = document.createElement('video');
-        playbackVideo.id = 'playback';
-        playbackVideo.style.width = '100%';
-        playbackVideo.style.height = '100%';
-        playbackVideo.style.objectFit = 'cover';
-        playbackVideo.style.position = 'absolute';
-        playbackVideo.style.top = '0';
-        playbackVideo.style.left = '0';
-        playbackVideo.style.zIndex = '2';
-        playbackVideo.controls = false; // Set to false if you don't want visible controls
-        playbackVideo.muted = false; // Playback with sound
-        videoContainer.appendChild(playbackVideo);
-        console.log('Created new playback video element');
-    }
-
-    if (window.recordedBlob) {
-        const videoURL = URL.createObjectURL(window.recordedBlob);
-        playbackVideo.src = videoURL;
-        playbackVideo.style.display = 'block';
-        console.log('Set video src to:', videoURL);
-
-        playbackVideo.play().then(() => {
-            console.log('Video playback started successfully');
-        }).catch(e => {
-            console.log('Autoplay prevented or failed:', e);
-            // Optionally add a message to the user here to click play if autoplay fails
-        });
-    } else {
-        console.error('No recorded blob available for playback');
-    }
-}
 
 function stopAllStreams() {
     // Stop all media streams
@@ -434,38 +371,6 @@ function stopAllStreams() {
 // Cleanup when page is closed/refreshed
 window.addEventListener('beforeunload', stopAllStreams);
 
-function advanceToReviewScreen() {
-    console.log('advanceToReviewScreen called');
-    console.log('Current section before:', currentSection);
-
-    currentSection = 2;
-    console.log('Current section after:', currentSection);
-
-    // Hide the webcam video element
-    const webcamVideo = videoContainer ? videoContainer.querySelector('video:not(#playback)') : null;
-    if (webcamVideo) {
-        webcamVideo.style.display = 'none';
-        console.log('Hid webcam video');
-    }
-
-    // Clear the record timer
-    if (recordTimerElement) { // Check if element exists
-        recordTimerElement.textContent = ""; // Clear timer if it's still visible
-    }
-
-    updateSectionDisplay(); // Always update display when changing sections
-
-    // Show the recorded video and autoplay it
-    if (window.recordedBlob) {
-        console.log('Recorded blob available, showing playback');
-        showPlaybackVideo();
-    } else {
-        console.error('No recorded blob available!');
-    }
-
-    enterDisabled = false;
-    console.log('Enter key re-enabled');
-}
 
 // Initialize the first step when the page loads
 document.addEventListener('DOMContentLoaded', () => {
