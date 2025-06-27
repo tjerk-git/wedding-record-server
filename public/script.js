@@ -27,6 +27,7 @@ let recordedChunks = [];
 let currentStream;
 let enterDisabled = false;
 let screenshotData = null; // Global variable to store screenshot data
+let currentPromptText = ''; // New: Global variable to store the current prompt
 
 document.addEventListener('keydown', function(event) {
     if (event.key === 'Enter' && !enterDisabled) {
@@ -68,7 +69,7 @@ function executeStep(step) {
             console.log("Executing Step 0: Initial/Reset Screen");
 
             if (videoDiv) {
-                videoDiv.innerHTML = '<video id="intro_video" src="babbelbox_3_goeie_2x_speed.mov" autoplay loop muted></video>';
+                videoDiv.innerHTML = '<video id="intro_video" src="babbelbox_3_goeie.mov" autoplay loop muted></video>';
                 const videoEl = videoDiv.querySelector('video');
                 if (videoEl) {
                     videoEl.play().catch(() => {}); // In case autoplay is blocked, try to play
@@ -80,6 +81,7 @@ function executeStep(step) {
             if (recordTimerElement) recordTimerElement.textContent = ''; // Clear main recording timer as well
             if (screenshotContainer) screenshotContainer.innerHTML = ''; // Clear previous screenshot
             screenshotData = null; // Clear screenshot data on reset
+            currentPromptText = ''; // New: Clear current prompt text on reset
 
             stopAllStreams();
             enterDisabled = false;
@@ -95,6 +97,7 @@ function executeStep(step) {
 
             let randomPrompt = prompts[Math.floor(Math.random() * prompts.length)];
             promptElement.textContent = randomPrompt;
+            currentPromptText = randomPrompt; // New: Store the current prompt
 
             let countdown = 5;
             timerElementSection1.textContent = countdown; // Use the specific timer for section 1
@@ -124,7 +127,13 @@ function executeStep(step) {
             stopAllStreams();
             enterDisabled = false;
 
-            uploadVideo();
+            // Upload the video, passing the current prompt text
+            uploadMedia(currentPromptText); // Modified: Pass currentPromptText
+
+            // Upload the screenshot if available, passing the current prompt text
+            if (screenshotData) {
+                uploadScreenshot(screenshotData, currentPromptText); // Modified: Pass currentPromptText
+            }
 
             // Display the screenshot if available
             if (screenshotData && screenshotContainer) {
@@ -174,6 +183,7 @@ function executeStep(step) {
                     origin: { x: 0.5, y: 1 }
                 });
             }
+           
 
             setTimeout(() => {
                 executeStep(0);
@@ -187,15 +197,19 @@ function executeStep(step) {
     }
 }
 
-async function uploadVideo() {
+/**
+ * Uploads the recorded video to the server.
+ * @param {string} promptText The text of the prompt displayed to the user.
+ */
+async function uploadMedia(promptText) { // Modified: Added promptText parameter
     const fileExtension = mediaRecorder.mimeType.includes('mp4') ? 'mp4' : 'webm';
     const blob = new Blob(recordedChunks, { type: mediaRecorder.mimeType });
     const formData = new FormData();
     formData.append('video', blob, `recording.${fileExtension}`);
-    formData.append('filename', 'recording');
+    formData.append('prompt', promptText); // New: Append the prompt text
 
     try {
-        const response = await fetch('/api/upload', {
+        const response = await fetch('/api/upload/video', {
             method: 'POST',
             body: formData
         });
@@ -203,12 +217,54 @@ async function uploadVideo() {
         const result = await response.json();
 
         if (result.success) {
-            // window.location.href = '/success.html';
+            console.log('Video uploaded successfully!');
+        } else {
+            console.error('Video upload failed:', result.message);
         }
     } catch (error) {
-        console.error('Upload failed:', error);
+        console.error('Video upload failed:', error);
     }
 }
+
+/**
+ * Uploads the screenshot to the server.
+ * @param {string} imageData The base64 encoded image data URL.
+ * @param {string} promptText The text of the prompt displayed to the user.
+ */
+async function uploadScreenshot(imageData, promptText) { // Modified: Added promptText parameter
+    // Convert base64 data URL to a Blob
+    const byteString = atob(imageData.split(',')[1]);
+    const mimeString = imageData.split(',')[0].split(':')[1].split(';')[0];
+    const ab = new ArrayBuffer(byteString.length);
+    const ia = new Uint8Array(ab);
+    for (let i = 0; i < byteString.length; i++) {
+        ia[i] = byteString.charCodeAt(i);
+    }
+    const blob = new Blob([ab], { type: mimeString });
+
+    const formData = new FormData();
+    formData.append('screenshot', blob, 'screenshot.png');
+    formData.append('prompt', promptText); // New: Append the prompt text
+
+    try {
+        const response = await fetch('/api/upload/screenshot', {
+            method: 'POST',
+            body: formData
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            console.log('Screenshot uploaded successfully!');
+            loadImages();
+        } else {
+            console.error('Screenshot upload failed:', result.message);
+        }
+    } catch (error) {
+        console.error('Screenshot upload failed:', error);
+    }
+}
+
 
 function updateSectionDisplay() {
     sections.forEach((section, index) => {
@@ -219,7 +275,6 @@ function updateSectionDisplay() {
         }
     });
 }
-
 
 function startRecording() {
     // Remove any previous video element
@@ -246,7 +301,6 @@ function startRecording() {
         videoContainer.appendChild(videoElem);
     }
 
-
     // Get user media and start recording (video only, no audio)
     navigator.mediaDevices.getUserMedia({ video: true, audio: true })
         .then(function(stream) {
@@ -258,17 +312,19 @@ function startRecording() {
 
             // Take screenshot after the video stream is active
             videoElem.onloadedmetadata = () => {
-                if (videoElem.videoWidth && videoElem.videoHeight) {
-                    const canvas = document.createElement('canvas');
-                    canvas.width = videoElem.videoWidth;
-                    canvas.height = videoElem.videoHeight;
-                    const context = canvas.getContext('2d');
-                    context.drawImage(videoElem, 0, 0, canvas.width, canvas.height);
-                    screenshotData = canvas.toDataURL('image/png'); // Store the screenshot
-                    console.log('Screenshot taken!');
-                } else {
-                    console.warn('Video element has no dimensions yet, cannot take screenshot.');
-                }
+                setTimeout(() => {
+                    if (videoElem.videoWidth && videoElem.videoHeight) {
+                        const canvas = document.createElement('canvas');
+                        canvas.width = videoElem.videoWidth;
+                        canvas.height = videoElem.videoHeight;
+                        const context = canvas.getContext('2d');
+                        context.drawImage(videoElem, 0, 0, canvas.width, canvas.height);
+                        screenshotData = canvas.toDataURL('image/png'); // Store the screenshot
+                        console.log('Screenshot taken after 5 seconds!');
+                    } else {
+                        console.warn('Video element has no dimensions yet, cannot take screenshot.');
+                    }
+                }, 5000); // 10 seconds in milliseconds
                 videoElem.onloadedmetadata = null; // Remove the event listener
             };
 
@@ -343,7 +399,6 @@ function startRecordingTimer() {
     }, 1000);
 }
 
-
 function stopAllStreams() {
     // Stop all media streams
     if (currentStream) {
@@ -372,7 +427,38 @@ function stopAllStreams() {
 window.addEventListener('beforeunload', stopAllStreams);
 
 
+function loadImages(){
+
+     console.log('loading images');
+     // Fetch all screenshots from /api/images and display them
+     fetch('/api/images')
+     .then(response => response.json())
+     .then(data => {
+         let imagesContainer = document.getElementById('images_container');
+         imagesContainer.innerHTML = "";
+         if (data.images && data.images.length > 0) {
+             data.images.forEach(filename => {
+                 // Only show screenshots (pngs) if you want, or show all images
+                 const img = document.createElement('img');
+                 img.src = `/uploads/${filename}`;
+                 img.alt = filename;
+                 img.style.maxWidth = '200px';
+                 img.style.maxHeight = '150px';
+                 img.style.objectFit = 'cover';
+                 img.style.borderRadius = '8px';
+                 imagesContainer.appendChild(img);
+             });
+         } else {
+             imagesContainer.textContent = 'No screenshots found.';
+         }
+     })
+     .catch(err => {
+         document.getElementById('images_container').textContent = 'Failed to load images.';
+     });
+}
+
 // Initialize the first step when the page loads
 document.addEventListener('DOMContentLoaded', () => {
     executeStep(0);
+    loadImages();
 });

@@ -4,12 +4,20 @@ body{
     background-color:white;
 }
 
+#section1{
+    position:relative;
+}
+
 #prompt{
     font-size:3rem;
     color:black;
     background:white;
     padding:1rem;
     z-index:2;
+}
+
+h1{
+    font-size:3rem;
 }
 
 #playback {
@@ -19,6 +27,14 @@ body{
     right: 0;
     top: 50%;
     background:white;
+}
+
+#record_timer{
+    left:0;
+    top:50px;
+    color:red;
+    font-size:5rem;
+    position: absolute;
 }
 
 #timer_section1{
@@ -38,10 +54,13 @@ body{
     position:absolute;
 }
 
-video{
-    border:none;
-}
-
+video {
+    all: unset;
+    display: block;
+    width: auto;
+    height: auto;
+  }
+  
 #intro_video{
     width: 800px;
     height: 600px;
@@ -51,3 +70,33 @@ video{
     transform: translate(-50%, -50%);
 }
 
+#marquee_container{
+    position:absolute;
+    bottom:0;
+}
+
+#images_container {
+    display: flex; /* Use flexbox to keep items in a row */
+    flex-wrap: nowrap; /* Prevent items from wrapping to the next line */
+    gap: 1rem;
+    overflow: hidden; /* Hide content that flows outside the container */
+    padding: 1rem 0;
+    position: relative;
+    width: 100vw;
+    box-sizing: border-box;
+    align-items: center;
+    min-height: 100px;
+    opacity:0.6;
+}
+
+/* This is the key for the infinite loop */
+#images_container > * { /* Target direct children of images_container */
+    flex-shrink: 0; /* Prevent items from shrinking */
+}
+
+#images_container img {
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+    margin: 0;
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
