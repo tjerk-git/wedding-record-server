@@ -46,8 +46,10 @@ app.post('/api/upload/video', upload.single('video'), (req, res) => {
         // Sanitize the prompt text to be safe for filenames
         const sanitizedPrompt = promptText.replace(/[^a-zA-Z0-9-_\.]/g, '_').substring(0, 50); // Limit length to avoid too long filenames
         const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-        // Construct the final filename including the sanitized prompt and timestamp
-        const finalFilename = `${sanitizedPrompt}_${timestamp}.webm`;
+        // Add random string to ensure uniqueness like in screenshot endpoint
+        const randomStr = Math.random().toString(36).substring(2, 8);
+        // Construct the final filename including the sanitized prompt, timestamp and random string
+        const finalFilename = `${sanitizedPrompt}_${timestamp}_${randomStr}.webm`;
         const filePath = path.join(uploadsDir, finalFilename);
 
         fs.writeFileSync(filePath, req.file.buffer);
@@ -71,8 +73,10 @@ app.post('/api/upload/screenshot', upload.single('screenshot'), (req, res) => {
         // Sanitize the prompt text to be safe for filenames
         const sanitizedPrompt = promptText.replace(/[^a-zA-Z0-9-_\.]/g, '_').substring(0, 50); // Limit length
         const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-        // Construct the final filename including the sanitized prompt and timestamp
-        const finalFilename = `${sanitizedPrompt}_${timestamp}.png`;
+        // Add random string to ensure uniqueness
+        const randomStr = Math.random().toString(36).substring(2, 8);
+        // Construct the final filename including the sanitized prompt, timestamp and random string
+        const finalFilename = `${sanitizedPrompt}_${timestamp}_${randomStr}.png`;
         const filePath = path.join(uploadsDir, finalFilename);
 
         fs.writeFileSync(filePath, req.file.buffer);

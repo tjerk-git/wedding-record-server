@@ -2,10 +2,10 @@ const sections = document.querySelectorAll('section');
 const promptElement = document.getElementById('prompt');
 const timerElementSection1 = document.getElementById('timer_section1');
 const recordTimerElement = document.getElementById('record_timer');
-const videoContainer = document.getElementById('video');
-// Set the video element to the specified video and play it
+const intro = document.getElementById('intro');
 const videoDiv = document.getElementById('video');
-const screenshotContainer = document.getElementById('screenshot_container'); // New element to display screenshot
+const screenshotContainer = document.getElementById('screenshot_container');
+const bgElem = document.querySelector('.bg');
 
 let currentSection = 0;
 
@@ -14,107 +14,99 @@ const prompts = [
     "Wat is een typische gezamenlijke hobby van Marlies en Thomas?",
     "Wie van de twee had als eerste een oogje op de ander?",
     "Waar kijken Marlies en Thomas het meest naar uit in hun huwelijk?",
-    "Wat is Marlies' geheime superkracht waar Thomas dagelijks van profiteert?",
+    "Wat is Marlies haar geheime superkracht waar Thomas dagelijks van profiteert?",
     "Wat is Thomas zijn geheime superkracht waar Marlies dagelijks van profiteert?",
     "Wat is het gekste wat Marlies & Thomas hebben meegemaakt vóór hun bruiloft?",
     "Wat is het eerste wat Marlies & Thomas zouden doen als ze per ongeluk een miljoen winnen?",
     "Als Marlies & Thomas een band zouden beginnen, hoe heet deze band en wat voor muziek maken ze?",
     "Wat is hun domste gezamenlijke aankoop ooit?",
-];
+    "Als Marlies & Thomas een jaar vrij zouden krijgen met een onbeperkt budget, wat zouden ze dan doen?",
+    "Wat is hun gezamenlijke droomproject?",
+    "Wie van de twee is het vaakst iets kwijt — en wat?",
+    "Wie doet de afwas meestal — en waarom eigenlijk?",
+    "Als hun relatie een boek was, wat zou de titel zijn?",
+    "Welke dierentuin-dieren zouden Marlies & Thomas zijn (en waarom)?"
+  ];
 
 let mediaRecorder;
 let recordedChunks = [];
 let currentStream;
 let enterDisabled = false;
-let screenshotData = null; // Global variable to store screenshot data
-let currentPromptText = ''; // New: Global variable to store the current prompt
+let screenshotData = null;
+let currentPromptText = '';
+let recordingStopped = false; // Prevent double stop
 
 document.addEventListener('keydown', function(event) {
     if (event.key === 'Enter' && !enterDisabled) {
-        event.preventDefault(); // Prevent default browser behavior (e.g., form submission)
+        event.preventDefault();
         handleShortEnterPress();
     }
 });
 
-/**
- * Handles the logic for a short Enter press.
- * Increments the currentSection and then executes the corresponding step.
- */
 function handleShortEnterPress() {
     if (enterDisabled) return;
-    currentSection++; // Advance for short press
+    currentSection++;
     executeStep(currentSection);
 }
 
-
-/**
- * Executes the code associated with the given step (currentSection).
- * This function centralizes all step-by-step logic.
- * @param {number} step The current step number to execute.
- */
 function executeStep(step) {
-    // Ensure currentSection is within valid bounds
     if (step >= sections.length) {
-        step = 0; // Reset to the first section if out of bounds
+        step = 0;
         stopAllStreams();
         enterDisabled = false;
     }
-    currentSection = step; // Update global currentSection
-
-    // Always update section display BEFORE trying to access elements within the section
+    currentSection = step;
     updateSectionDisplay();
 
     switch (currentSection) {
-        case 0: // Initial screen or reset
+        case 0:
             console.log("Executing Step 0: Initial/Reset Screen");
-
-            if (videoDiv) {
-                videoDiv.innerHTML = '<video id="intro_video" src="babbelbox_3_goeie.mov" autoplay loop muted></video>';
-                const videoEl = videoDiv.querySelector('video');
-                if (videoEl) {
-                    videoEl.play().catch(() => {}); // In case autoplay is blocked, try to play
-                }
+            if(videoDiv){
+                videoDiv.style.display = 'none';
             }
-            // Ensure elements are cleared for a clean start
+            if(intro){
+                intro.style.display = 'flex';
+            }
+
+            if (bgElem) {
+                bgElem.style.opacity = '0.3';
+            }
+
+
             if (promptElement) promptElement.textContent = '';
             if (timerElementSection1) timerElementSection1.textContent = '';
-            if (recordTimerElement) recordTimerElement.textContent = ''; // Clear main recording timer as well
-            if (screenshotContainer) screenshotContainer.innerHTML = ''; // Clear previous screenshot
-            screenshotData = null; // Clear screenshot data on reset
-            currentPromptText = ''; // New: Clear current prompt text on reset
-
+            if (recordTimerElement) recordTimerElement.textContent = '';
+            if (screenshotContainer) screenshotContainer.innerHTML = '';
+            screenshotData = null;
+            currentPromptText = '';
             stopAllStreams();
             enterDisabled = false;
             break;
 
-        case 1: // Display prompt and start countdown for recording
+        case 1:
+            if (bgElem) {
+                bgElem.style.opacity = '0.2';
+            }
+            intro.style.display = 'none';
             console.log("Executing Step 1: Displaying Prompt & Starting Countdown");
             enterDisabled = true;
-
-            if (videoDiv) {
-                videoDiv.style.display = 'none';
-            }
-
             let randomPrompt = prompts[Math.floor(Math.random() * prompts.length)];
             promptElement.textContent = randomPrompt;
-            currentPromptText = randomPrompt; // New: Store the current prompt
-
+            currentPromptText = randomPrompt;
             let countdown = 5;
-            timerElementSection1.textContent = countdown; // Use the specific timer for section 1
-
+            timerElementSection1.textContent =  countdown;
             if (window.countdownInterval) {
                 clearInterval(window.countdownInterval);
             }
-
             window.countdownInterval = setInterval(() => {
                 countdown--;
                 if (countdown > 0) {
                     timerElementSection1.textContent = countdown;
                 } else if (countdown === 0) {
                     timerElementSection1.textContent = "go!";
-
+       
                     startRecording();
-                    enterDisabled = true; // Disable Enter during recording countdown and recording
+                    enterDisabled = true;
                 } else if (countdown === -1) {
                     timerElementSection1.textContent = "";
                     clearInterval(window.countdownInterval);
@@ -122,22 +114,16 @@ function executeStep(step) {
             }, 1000);
             break;
 
-        case 2: // Success screen with confetti and screenshot
+        case 2:
             console.log("Executing Step 2: Success Screen");
             stopAllStreams();
             enterDisabled = false;
-
-            // Upload the video, passing the current prompt text
-            uploadMedia(currentPromptText); // Modified: Pass currentPromptText
-
-            // Upload the screenshot if available, passing the current prompt text
+            uploadMedia(currentPromptText);
             if (screenshotData) {
-                uploadScreenshot(screenshotData, currentPromptText); // Modified: Pass currentPromptText
+                uploadScreenshot(screenshotData, currentPromptText);
             }
-
-            // Display the screenshot if available
             if (screenshotData && screenshotContainer) {
-                screenshotContainer.innerHTML = ''; // Clear existing content
+                screenshotContainer.innerHTML = '';
                 const img = document.createElement('img');
                 img.src = screenshotData;
                 img.alt = "Screenshot of your recording start";
@@ -147,11 +133,8 @@ function executeStep(step) {
                 img.style.margin = "20px auto";
                 screenshotContainer.appendChild(img);
             }
-
-            // Confetti animation
             var duration = 2000;
             var end = Date.now() + duration;
-
             if (typeof confetti === "function") {
                 confetti({
                     particleCount: 200,
@@ -183,8 +166,6 @@ function executeStep(step) {
                     origin: { x: 0.5, y: 1 }
                 });
             }
-           
-
             setTimeout(() => {
                 executeStep(0);
             }, 5000);
@@ -192,30 +173,32 @@ function executeStep(step) {
 
         default:
             console.log(`Unhandled step: ${currentSection}. Resetting.`);
-            executeStep(0); // Go to the initial state
+            executeStep(0);
             break;
     }
 }
 
-/**
- * Uploads the recorded video to the server.
- * @param {string} promptText The text of the prompt displayed to the user.
- */
-async function uploadMedia(promptText) { // Modified: Added promptText parameter
-    const fileExtension = mediaRecorder.mimeType.includes('mp4') ? 'mp4' : 'webm';
-    const blob = new Blob(recordedChunks, { type: mediaRecorder.mimeType });
+async function uploadMedia(promptText) {
+    // Defensive: If no chunks, don't upload
+    if (!recordedChunks || recordedChunks.length === 0) {
+        console.error('No recordedChunks to upload!');
+        return;
+    }
+    // Use the type of the first chunk if available, fallback to webm
+    let mimeType = (recordedChunks[0] && recordedChunks[0].type) ? recordedChunks[0].type : (mediaRecorder && mediaRecorder.mimeType ? mediaRecorder.mimeType : 'video/webm');
+    const fileExtension = mimeType.includes('mp4') ? 'mp4' : 'webm';
+    const blob = new Blob(recordedChunks, { type: mimeType });
+    console.log('Uploading video. Blob size:', blob.size, 'type:', blob.type, 'chunks:', recordedChunks.length);
     const formData = new FormData();
     formData.append('video', blob, `recording.${fileExtension}`);
-    formData.append('prompt', promptText); // New: Append the prompt text
+    formData.append('prompt', promptText);
 
     try {
         const response = await fetch('/api/upload/video', {
             method: 'POST',
             body: formData
         });
-
         const result = await response.json();
-
         if (result.success) {
             console.log('Video uploaded successfully!');
         } else {
@@ -226,13 +209,7 @@ async function uploadMedia(promptText) { // Modified: Added promptText parameter
     }
 }
 
-/**
- * Uploads the screenshot to the server.
- * @param {string} imageData The base64 encoded image data URL.
- * @param {string} promptText The text of the prompt displayed to the user.
- */
-async function uploadScreenshot(imageData, promptText) { // Modified: Added promptText parameter
-    // Convert base64 data URL to a Blob
+async function uploadScreenshot(imageData, promptText) {
     const byteString = atob(imageData.split(',')[1]);
     const mimeString = imageData.split(',')[0].split(':')[1].split(';')[0];
     const ab = new ArrayBuffer(byteString.length);
@@ -244,7 +221,7 @@ async function uploadScreenshot(imageData, promptText) { // Modified: Added prom
 
     const formData = new FormData();
     formData.append('screenshot', blob, 'screenshot.png');
-    formData.append('prompt', promptText); // New: Append the prompt text
+    formData.append('prompt', promptText);
 
     try {
         const response = await fetch('/api/upload/screenshot', {
@@ -265,7 +242,6 @@ async function uploadScreenshot(imageData, promptText) { // Modified: Added prom
     }
 }
 
-
 function updateSectionDisplay() {
     sections.forEach((section, index) => {
         if (index === currentSection) {
@@ -278,7 +254,7 @@ function updateSectionDisplay() {
 
 function startRecording() {
     // Remove any previous video element
-    const oldVideo = videoContainer ? videoContainer.querySelector('video:not(#playback)') : null;
+    const oldVideo = videoDiv ? videoDiv.querySelector('video:not(#playback)') : null;
     if (oldVideo) {
         oldVideo.remove();
     }
@@ -297,18 +273,23 @@ function startRecording() {
     videoElem.style.left = "0";
     videoElem.style.zIndex = "-1";
 
-    if (videoContainer) { // Ensure videoContainer exists before appending
-        videoContainer.appendChild(videoElem);
+    if (videoDiv) {
+        videoDiv.appendChild(videoElem);
     }
 
-    // Get user media and start recording (video only, no audio)
+    // Get user media and start recording (video and audio)
     navigator.mediaDevices.getUserMedia({ video: true, audio: true })
         .then(function(stream) {
             console.log('Got media stream:', stream);
             videoElem.srcObject = stream;
-            videoElem.muted = true; // Mute the LIVE preview (webcam)
-
+            videoElem.muted = true;
             currentStream = stream;
+
+            // Check for audio tracks
+            const hasAudio = stream.getAudioTracks().length > 0;
+            if (!hasAudio) {
+                console.warn('No audio tracks found in stream!');
+            }
 
             // Take screenshot after the video stream is active
             videoElem.onloadedmetadata = () => {
@@ -319,34 +300,49 @@ function startRecording() {
                         canvas.height = videoElem.videoHeight;
                         const context = canvas.getContext('2d');
                         context.drawImage(videoElem, 0, 0, canvas.width, canvas.height);
-                        screenshotData = canvas.toDataURL('image/png'); // Store the screenshot
+                        screenshotData = canvas.toDataURL('image/png');
                         console.log('Screenshot taken after 5 seconds!');
                     } else {
                         console.warn('Video element has no dimensions yet, cannot take screenshot.');
                     }
-                }, 5000); // 10 seconds in milliseconds
-                videoElem.onloadedmetadata = null; // Remove the event listener
+                }, 5000);
+                videoElem.onloadedmetadata = null;
             };
 
+            // --- MediaRecorder setup ---
+            recordedChunks = [];
+            recordingStopped = false;
 
-            // Check MediaRecorder support
-            if (!MediaRecorder.isTypeSupported('video/webm')) {
-                console.warn('video/webm not supported, trying video/mp4');
+            // Find a supported MIME type
+            let mimeType = '';
+            if (MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus')) {
+                mimeType = 'video/webm;codecs=vp9,opus';
+            } else if (MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus')) {
+                mimeType = 'video/webm;codecs=vp8,opus';
+            } else if (MediaRecorder.isTypeSupported('video/webm')) {
+                mimeType = 'video/webm';
+            } else if (MediaRecorder.isTypeSupported('video/mp4')) {
+                mimeType = 'video/mp4';
+            } else {
+                mimeType = '';
             }
 
-            // Setup MediaRecorder
-            recordedChunks = [];
             try {
-                mediaRecorder = new MediaRecorder(stream);
-                console.log('MediaRecorder created successfully');
+                if (mimeType) {
+                    mediaRecorder = new MediaRecorder(stream, { mimeType });
+                } else {
+                    mediaRecorder = new MediaRecorder(stream);
+                }
+                console.log('MediaRecorder created successfully with mimeType:', mediaRecorder.mimeType);
             } catch (e) {
                 console.error('Failed to create MediaRecorder:', e);
+                alert('MediaRecorder could not be created: ' + e.message);
                 return;
             }
 
             mediaRecorder.ondataavailable = function(event) {
-                console.log('Data available:', event.data.size, 'bytes');
-                if (event.data.size > 0) {
+                console.log('ondataavailable: event.data.size =', event.data.size, 'type:', event.data.type);
+                if (event.data && event.data.size > 0) {
                     recordedChunks.push(event.data);
                     console.log('Added chunk, total chunks:', recordedChunks.length);
                 } else {
@@ -354,14 +350,41 @@ function startRecording() {
                 }
             };
 
-            mediaRecorder.onstop = function() {
-                window.recordedBlob = new Blob(recordedChunks, { type: 'video/webm' });
-                console.log('Recording stopped, blob created');
-                // The advanceToReviewScreen is now handled by the timer reaching 0 in startRecordingTimer
+            mediaRecorder.onerror = function(e) {
+                console.error('MediaRecorder error:', e);
             };
 
-            // Start recording
-            mediaRecorder.start();
+            mediaRecorder.onstart = function() {
+                console.log('MediaRecorder started');
+            };
+
+            mediaRecorder.onstop = function() {
+                if (recordingStopped) return;
+                recordingStopped = true;
+                console.log('MediaRecorder stopped. Total chunks:', recordedChunks.length);
+                if (recordedChunks.length === 0) {
+                    console.error('No data was recorded!');
+                } else {
+                    let totalSize = recordedChunks.reduce((acc, chunk) => acc + chunk.size, 0);
+                    console.log('Total recorded size:', totalSize, 'bytes');
+                }
+                window.recordedBlob = new Blob(recordedChunks, { type: mediaRecorder.mimeType });
+                // Only now advance to the next step
+                setTimeout(() => {
+                    executeStep(2);
+                }, 100); // Small delay to ensure all data is flushed
+            };
+
+            // Start recording with a timeslice to force periodic dataavailable events
+            // 1000ms = 1s, so we get at least one chunk per second
+            try {
+                mediaRecorder.start(1000);
+                console.log('mediaRecorder.start(1000) called');
+            } catch (e) {
+                console.error('mediaRecorder.start failed:', e);
+                alert('Recording could not be started: ' + e.message);
+                return;
+            }
 
             // Start recording timer
             startRecordingTimer();
@@ -374,14 +397,10 @@ function startRecording() {
 
 function startRecordingTimer() {
     let recordCountdown = 10;
-
     recordTimerElement.textContent = recordCountdown;
-
-    // Clear any existing recording interval
     if (window.recordInterval) {
         clearInterval(window.recordInterval);
     }
-
     window.recordInterval = setInterval(() => {
         recordCountdown--;
         if (recordCountdown > 0) {
@@ -389,11 +408,11 @@ function startRecordingTimer() {
         } else {
             recordTimerElement.textContent = "";
             clearInterval(window.recordInterval);
-
             // Stop recording when timer reaches 0
-            if (mediaRecorder && mediaRecorder.state === "recording") {
+            if (mediaRecorder && mediaRecorder.state === "recording" && !recordingStopped) {
+                console.log('Calling mediaRecorder.stop() after timer');
                 mediaRecorder.stop();
-                executeStep(2); // Advance to the success screen here
+                // Do NOT call executeStep(2) here; wait for onstop event!
             }
         }
     }, 1000);
@@ -405,40 +424,34 @@ function stopAllStreams() {
         currentStream.getTracks().forEach(track => track.stop());
         currentStream = null;
     }
-
     // Clear intervals
     if (window.countdownInterval) {
         clearInterval(window.countdownInterval);
         window.countdownInterval = null;
     }
-
     if (window.recordInterval) {
         clearInterval(window.recordInterval);
         window.recordInterval = null;
     }
-
     // Stop media recorder
-    if (mediaRecorder && mediaRecorder.state === "recording") {
+    if (mediaRecorder && mediaRecorder.state === "recording" && !recordingStopped) {
+        console.log('Calling mediaRecorder.stop() from stopAllStreams');
         mediaRecorder.stop();
+        recordingStopped = true;
     }
 }
 
-// Cleanup when page is closed/refreshed
 window.addEventListener('beforeunload', stopAllStreams);
 
-
 function loadImages(){
-
      console.log('loading images');
-     // Fetch all screenshots from /api/images and display them
      fetch('/api/images')
      .then(response => response.json())
      .then(data => {
          let imagesContainer = document.getElementById('images_container');
          imagesContainer.innerHTML = "";
          if (data.images && data.images.length > 0) {
-             data.images.forEach(filename => {
-                 // Only show screenshots (pngs) if you want, or show all images
+             data.images.forEach((filename, index) => {
                  const img = document.createElement('img');
                  img.src = `/uploads/${filename}`;
                  img.alt = filename;
@@ -446,10 +459,11 @@ function loadImages(){
                  img.style.maxHeight = '150px';
                  img.style.objectFit = 'cover';
                  img.style.borderRadius = '8px';
+                 if (index === data.images.length - 1) {
+                     img.classList.add('new-image');
+                 }
                  imagesContainer.appendChild(img);
              });
-         } else {
-             imagesContainer.textContent = 'No screenshots found.';
          }
      })
      .catch(err => {
@@ -457,7 +471,6 @@ function loadImages(){
      });
 }
 
-// Initialize the first step when the page loads
 document.addEventListener('DOMContentLoaded', () => {
     executeStep(0);
     loadImages();

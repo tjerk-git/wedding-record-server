@@ -1,11 +1,83 @@
+@import url('https://fonts.googleapis.com/css2?family=Darker+Grotesque:wght@400;500;700&display=swap');
+
+
 body{
     margin:0;
     padding:0;
-    background-color:white;
+    font-family: 'Darker Grotesque', sans-serif;
 }
 
+h1 {
+    font-size: 5rem;
+    margin:0;
+}
+
+h2 {
+    font-size: 3rem; /* 10rem / 1.618 ≈ 6.18rem */
+    margin:0;
+}
+
+h3 {
+    font-size: 2rem; /* 6.18rem / 1.618 ≈ 3.82rem */
+    margin:0;
+}
+
+
+#intro{
+    margin-top:2rem;
+    padding:1rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap:1rem;
+}
+
+.bg{
+    background:url("bg.png") no-repeat center center fixed;
+    background-size: cover;
+    position:absolute;
+    top:0;
+    left:0;
+    width:100%;
+    height:100%;
+    z-index:0;
+    opacity:0.3;
+    animation: moveBg 22s linear infinite;
+}
+
+@keyframes moveBg {
+    0% {
+        background-position: center center;
+    }
+    20% {
+        background-position: center top;
+    }
+    50%{
+        background-position:  center left;
+    }
+    100% {
+        background-position: center center;
+    }
+}
+
+
 #section1{
-    position:relative;
+   
+}
+
+.right_corner{
+    position: absolute;
+    top: 1rem;
+    right: 2rem;
+    font-size: 1rem;
+    color: #fff;
+    background: rgba(0,0,0,0.3);
+    padding: 0.5rem 1.2rem;
+    border-radius: 2rem;
+    z-index: 10;
+    font-family: 'Darker Grotesque', Arial, sans-serif;
+    pointer-events: none;
 }
 
 #prompt{
@@ -13,28 +85,43 @@ body{
     color:black;
     background:white;
     padding:1rem;
-    z-index:2;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap:1rem;
 }
 
-h1{
-    font-size:3rem;
-}
-
-#playback {
-    width: 800px;
-    height: 600px;
-    position: absolute;
-    right: 0;
-    top: 50%;
-    background:white;
-}
 
 #record_timer{
-    left:0;
-    top:50px;
-    color:red;
-    font-size:5rem;
+    color: rgb(255, 255, 255);
+    font-size: 5rem;
     position: absolute;
+    top: 2rem;
+    right: 2rem;
+    left: auto;
+    top: auto;
+    transform: none;
+}
+
+#record_icon{
+    position: absolute;
+    top: 10rem;
+    right: 2rem;
+    width: 5rem;
+    height: 5rem;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    display:none;
+}
+
+#section2{
+    padding:1rem;
+    display:flex;
+    justify-content: center;
+    align-items: center;
 }
 
 #timer_section1{
@@ -99,4 +186,35 @@ video {
     box-shadow: 0 2px 8px rgba(0,0,0,0.12);
     margin: 0;
     transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes popIn {
+    0% {
+        transform: scale(0);
+        opacity: 0;
+    }
+    70% {
+        transform: scale(1.1);
+        opacity: 0.7;
+    }
+    100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+.new-image {
+    animation: popIn 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55) forwards;
+}
+
+@keyframes moveBackground {
+    0% {
+        transform: translate(0%, 0%) scale(1);
+    }
+    50% {
+        transform: translate(-25%, -25%) scale(1.1);
+    }
+    100% {
+        transform: translate(0%, 0%) scale(1);
+    }
 }
