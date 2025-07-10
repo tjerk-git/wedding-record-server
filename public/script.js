@@ -245,7 +245,7 @@ async function uploadScreenshot(imageData, promptText) {
 function updateSectionDisplay() {
     sections.forEach((section, index) => {
         if (index === currentSection) {
-            section.style.display = 'block';
+            section.style.display = 'flex';
         } else {
             section.style.display = 'none';
         }

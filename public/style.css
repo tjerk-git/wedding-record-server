@@ -1,5 +1,66 @@
-@import url('https://fonts.googleapis.com/css2?family=Darker+Grotesque:wght@400;500;700&display=swap');
-
+/* darker-grotesque-300 - latin */
+@font-face {
+    font-display: swap; /* Check https://developer.mozilla.org/en-US/docs/Web/CSS/@font-face/font-display for other options. */
+    font-family: 'Darker Grotesque';
+    font-style: normal;
+    font-weight: 300;
+    src: url('fonts/darker-grotesque-v9-latin/darker-grotesque-v9-latin-300.woff2') format('woff2'); /* Chrome 36+, Opera 23+, Firefox 39+, Safari 12+, iOS 10+ */
+  }
+  
+  /* darker-grotesque-regular - latin */
+  @font-face {
+    font-display: swap; /* Check https://developer.mozilla.org/en-US/docs/Web/CSS/@font-face/font-display for other options. */
+    font-family: 'Darker Grotesque';
+    font-style: normal;
+    font-weight: 400;
+    src: url('fonts/darker-grotesque-v9-latin/darker-grotesque-v9-latin-regular.woff2') format('woff2'); /* Chrome 36+, Opera 23+, Firefox 39+, Safari 12+, iOS 10+ */
+  }
+  
+  /* darker-grotesque-500 - latin */
+  @font-face {
+    font-display: swap; /* Check https://developer.mozilla.org/en-US/docs/Web/CSS/@font-face/font-display for other options. */
+    font-family: 'Darker Grotesque';
+    font-style: normal;
+    font-weight: 500;
+    src: url('fonts/darker-grotesque-v9-latin/darker-grotesque-v9-latin-500.woff2') format('woff2'); /* Chrome 36+, Opera 23+, Firefox 39+, Safari 12+, iOS 10+ */
+  }
+  
+  /* darker-grotesque-600 - latin */
+  @font-face {
+    font-display: swap; /* Check https://developer.mozilla.org/en-US/docs/Web/CSS/@font-face/font-display for other options. */
+    font-family: 'Darker Grotesque';
+    font-style: normal;
+    font-weight: 600;
+    src: url('fonts/darker-grotesque-v9-latin/darker-grotesque-v9-latin-600.woff2') format('woff2'); /* Chrome 36+, Opera 23+, Firefox 39+, Safari 12+, iOS 10+ */
+  }
+  
+  /* darker-grotesque-700 - latin */
+  @font-face {
+    font-display: swap; /* Check https://developer.mozilla.org/en-US/docs/Web/CSS/@font-face/font-display for other options. */
+    font-family: 'Darker Grotesque';
+    font-style: normal;
+    font-weight: 700;
+    src: url('fonts/darker-grotesque-v9-latin/darker-grotesque-v9-latin-700.woff2') format('woff2'); /* Chrome 36+, Opera 23+, Firefox 39+, Safari 12+, iOS 10+ */
+  }
+  
+  /* darker-grotesque-800 - latin */
+  @font-face {
+    font-display: swap; /* Check https://developer.mozilla.org/en-US/docs/Web/CSS/@font-face/font-display for other options. */
+    font-family: 'Darker Grotesque';
+    font-style: normal;
+    font-weight: 800;
+    src: url('fonts/darker-grotesque-v9-latin/darker-grotesque-v9-latin-800.woff2') format('woff2'); /* Chrome 36+, Opera 23+, Firefox 39+, Safari 12+, iOS 10+ */
+  }
+  
+  /* darker-grotesque-900 - latin */
+  @font-face {
+    font-display: swap; /* Check https://developer.mozilla.org/en-US/docs/Web/CSS/@font-face/font-display for other options. */
+    font-family: 'Darker Grotesque';
+    font-style: normal;
+    font-weight: 900;
+    src: url('fonts/darker-grotesque-v9-latin/darker-grotesque-v9-latin-900.woff2') format('woff2'); /* Chrome 36+, Opera 23+, Firefox 39+, Safari 12+, iOS 10+ */
+  }
+  
 
 body{
     margin:0;
@@ -63,26 +124,36 @@ h3 {
 
 
 #section1{
-   
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .right_corner{
     position: absolute;
-    top: 1rem;
-    right: 2rem;
+    bottom: 1rem;
+    right: 1rem;
     font-size: 1rem;
     color: #fff;
-    background: rgba(0,0,0,0.3);
     padding: 0.5rem 1.2rem;
     border-radius: 2rem;
     z-index: 10;
     font-family: 'Darker Grotesque', Arial, sans-serif;
     pointer-events: none;
+    display:flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+}
+
+.right_corner img{
+    width:100px;
 }
 
 #prompt{
-    font-size:3rem;
+    font-size:2rem;
     color:black;
+    max-width:800px;
     background:white;
     padding:1rem;
     display: flex;
@@ -90,6 +161,22 @@ h3 {
     align-items: center;
     justify-content: center;
     gap:1rem;
+    margin:1rem;
+    border-radius: 1rem;
+    position: relative;
+}
+#prompt::after {
+    content: "";
+    position: absolute;
+    left: 2.5rem;
+    bottom: -18px;
+    width: 0;
+    height: 0;
+    border: 16px solid transparent;
+    border-top-color: white;
+    border-bottom: 0;
+    border-right: 0;
+    margin-left: -8px;
 }
 
 
