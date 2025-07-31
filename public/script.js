@@ -4,29 +4,20 @@ const timerElementSection1 = document.getElementById('timer_section1');
 const recordTimerElement = document.getElementById('record_timer');
 const intro = document.getElementById('intro');
 const videoDiv = document.getElementById('video');
+const cameraPreview = document.getElementById('camera_preview');
 const screenshotContainer = document.getElementById('screenshot_container');
 const bgElem = document.querySelector('.bg');
 
 let currentSection = 0;
 
 const prompts = [
-    "Wat zijn de eigenschappen die Marlies in Thomas het meest bewonderen in elkaar?",
-    "Wat is een typische gezamenlijke hobby van Marlies en Thomas?",
-    "Wie van de twee had als eerste een oogje op de ander?",
-    "Waar kijken Marlies en Thomas het meest naar uit in hun huwelijk?",
-    "Wat is Marlies haar geheime superkracht waar Thomas dagelijks van profiteert?",
-    "Wat is Thomas zijn geheime superkracht waar Marlies dagelijks van profiteert?",
-    "Wat is het gekste wat Marlies & Thomas hebben meegemaakt vóór hun bruiloft?",
-    "Wat is het eerste wat Marlies & Thomas zouden doen als ze per ongeluk een miljoen winnen?",
-    "Als Marlies & Thomas een band zouden beginnen, hoe heet deze band en wat voor muziek maken ze?",
-    "Wat is hun domste gezamenlijke aankoop ooit?",
-    "Als Marlies & Thomas een jaar vrij zouden krijgen met een onbeperkt budget, wat zouden ze dan doen?",
-    "Wat is hun gezamenlijke droomproject?",
-    "Wie van de twee is het vaakst iets kwijt — en wat?",
-    "Wie doet de afwas meestal — en waarom eigenlijk?",
-    "Als hun relatie een boek was, wat zou de titel zijn?",
-    "Welke dierentuin-dieren zouden Marlies & Thomas zijn (en waarom)?"
-  ];
+    "Wat is je favoriete herinnering aan Marlies en/of Thomas?",
+    "Natuurlijk ben ik vandaag op de bruiloft van Marlies & Thomas omdat...", 
+    "Wat wil je Marlies & Thomas meegeven?", 
+    "Wat is je eerste herinnering aan Marlies of Thomas?", 
+    "Laat je favoriete dance move zien!", 
+    "Deel een onverwacht feit over Marlies of Thomas"
+];
 
 let mediaRecorder;
 let recordedChunks = [];
@@ -35,6 +26,44 @@ let enterDisabled = false;
 let screenshotData = null;
 let currentPromptText = '';
 let recordingStopped = false; // Prevent double stop
+
+function startCameraPreview() {
+    if (!cameraPreview) return;
+    
+    // Clear any existing video
+    cameraPreview.innerHTML = '';
+    
+    // Create video element for preview
+    const previewVideo = document.createElement('video');
+    previewVideo.setAttribute('autoplay', true);
+    previewVideo.setAttribute('playsinline', true);
+    previewVideo.setAttribute('muted', true);
+    
+    cameraPreview.appendChild(previewVideo);
+    
+    // Get user media for preview (video only, no audio)
+    navigator.mediaDevices.getUserMedia({ video: true, audio: false })
+        .then(function(stream) {
+            previewVideo.srcObject = stream;
+            console.log('Camera preview started');
+        })
+        .catch(function(err) {
+            console.error('Error accessing camera for preview:', err);
+            cameraPreview.innerHTML = '<div style="color: white; text-align: center; padding: 2rem;">Camera niet beschikbaar</div>';
+        });
+}
+
+function stopCameraPreview() {
+    if (cameraPreview) {
+        // Stop any active video streams in the preview
+        const previewVideo = cameraPreview.querySelector('video');
+        if (previewVideo && previewVideo.srcObject) {
+            const stream = previewVideo.srcObject;
+            stream.getTracks().forEach(track => track.stop());
+        }
+        cameraPreview.innerHTML = '';
+    }
+}
 
 document.addEventListener('keydown', function(event) {
     if (event.key === 'Enter' && !enterDisabled) {
@@ -72,7 +101,6 @@ function executeStep(step) {
                 bgElem.style.opacity = '0.3';
             }
 
-
             if (promptElement) promptElement.textContent = '';
             if (timerElementSection1) timerElementSection1.textContent = '';
             if (recordTimerElement) recordTimerElement.textContent = '';
@@ -80,6 +108,8 @@ function executeStep(step) {
             screenshotData = null;
             currentPromptText = '';
             stopAllStreams();
+            stopCameraPreview();
+            startCameraPreview();
             enterDisabled = false;
             break;
 
@@ -88,6 +118,7 @@ function executeStep(step) {
                 bgElem.style.opacity = '0.2';
             }
             intro.style.display = 'none';
+            stopCameraPreview();
             console.log("Executing Step 1: Displaying Prompt & Starting Countdown");
             enterDisabled = true;
             let randomPrompt = prompts[Math.floor(Math.random() * prompts.length)];
@@ -424,6 +455,8 @@ function stopAllStreams() {
         currentStream.getTracks().forEach(track => track.stop());
         currentStream = null;
     }
+    // Stop camera preview
+    stopCameraPreview();
     // Clear intervals
     if (window.countdownInterval) {
         clearInterval(window.countdownInterval);
