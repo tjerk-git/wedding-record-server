@@ -41,8 +41,15 @@ function startCameraPreview() {
     
     cameraPreview.appendChild(previewVideo);
     
-    // Get user media for preview (video only, no audio)
-    navigator.mediaDevices.getUserMedia({ video: true, audio: false })
+    // Get user media for preview with Raspberry Pi-friendly settings
+    navigator.mediaDevices.getUserMedia({ 
+        video: {
+            width: { ideal: 640, max: 1280 },
+            height: { ideal: 480, max: 720 },
+            frameRate: { ideal: 25, max: 30 }
+        }, 
+        audio: false 
+    })
         .then(function(stream) {
             previewVideo.srcObject = stream;
             console.log('Camera preview started');
@@ -63,6 +70,96 @@ function stopCameraPreview() {
         }
         cameraPreview.innerHTML = '';
     }
+}
+
+function startRecordingWithStream(stream) {
+    // --- MediaRecorder setup ---
+    recordedChunks = [];
+    recordingStopped = false;
+
+    // Find a supported MIME type
+    let mimeType = '';
+    // Prioritize codecs that work well on Raspberry Pi
+    if (MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus')) {
+        mimeType = 'video/webm;codecs=vp8,opus';
+    } else if (MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus')) {
+        mimeType = 'video/webm;codecs=vp9,opus';
+    } else if (MediaRecorder.isTypeSupported('video/webm')) {
+        mimeType = 'video/webm';
+    } else if (MediaRecorder.isTypeSupported('video/mp4')) {
+        mimeType = 'video/mp4';
+    } else {
+        mimeType = '';
+    }
+
+    try {
+        if (mimeType) {
+            mediaRecorder = new MediaRecorder(stream, { 
+                mimeType,
+                videoBitsPerSecond: 2500000, // 2.5 Mbps for better quality/sync
+                audioBitsPerSecond: 128000   // 128 kbps audio
+            });
+        } else {
+            mediaRecorder = new MediaRecorder(stream, {
+                videoBitsPerSecond: 2500000,
+                audioBitsPerSecond: 128000
+            });
+        }
+        console.log('MediaRecorder created successfully with mimeType:', mediaRecorder.mimeType);
+    } catch (e) {
+        console.error('Failed to create MediaRecorder:', e);
+        alert('MediaRecorder could not be created: ' + e.message);
+        return;
+    }
+
+    mediaRecorder.ondataavailable = function(event) {
+        console.log('ondataavailable: event.data.size =', event.data.size, 'type:', event.data.type);
+        if (event.data && event.data.size > 0) {
+            recordedChunks.push(event.data);
+            console.log('Added chunk, total chunks:', recordedChunks.length);
+        } else {
+            console.warn('Received empty data chunk');
+        }
+    };
+
+    mediaRecorder.onerror = function(e) {
+        console.error('MediaRecorder error:', e);
+    };
+
+    mediaRecorder.onstart = function() {
+        console.log('MediaRecorder started');
+    };
+
+    mediaRecorder.onstop = function() {
+        if (recordingStopped) return;
+        recordingStopped = true;
+        console.log('MediaRecorder stopped. Total chunks:', recordedChunks.length);
+        if (recordedChunks.length === 0) {
+            console.error('No data was recorded!');
+        } else {
+            let totalSize = recordedChunks.reduce((acc, chunk) => acc + chunk.size, 0);
+            console.log('Total recorded size:', totalSize, 'bytes');
+        }
+        window.recordedBlob = new Blob(recordedChunks, { type: mediaRecorder.mimeType });
+        // Only now advance to the next step
+        setTimeout(() => {
+            executeStep(2);
+        }, 100); // Small delay to ensure all data is flushed
+    };
+
+    // Start recording with a timeslice to force periodic dataavailable events
+    // 500ms = 0.5s, so we get chunks twice per second for better sync
+    try {
+        mediaRecorder.start(500);
+        console.log('mediaRecorder.start(500) called');
+    } catch (e) {
+        console.error('mediaRecorder.start failed:', e);
+        alert('Recording could not be started: ' + e.message);
+        return;
+    }
+
+    // Start recording timer
+    startRecordingTimer();
 }
 
 document.addEventListener('keydown', function(event) {
@@ -309,9 +406,39 @@ function startRecording() {
     }
 
     // Get user media and start recording (video and audio)
-    navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+    navigator.mediaDevices.getUserMedia({ 
+        video: {
+            width: { ideal: 1280, max: 1920 },
+            height: { ideal: 720, max: 1080 },
+            frameRate: { ideal: 30, max: 30 },
+            aspectRatio: { ideal: 16/9 }
+        }, 
+        audio: {
+            sampleRate: { ideal: 48000, max: 48000 },
+            channelCount: { ideal: 1, max: 1 },
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true
+        }
+    })
         .then(function(stream) {
             console.log('Got media stream:', stream);
+            
+            // Log stream details for debugging
+            const videoTracks = stream.getVideoTracks();
+            const audioTracks = stream.getAudioTracks();
+            console.log('Video tracks:', videoTracks.length);
+            console.log('Audio tracks:', audioTracks.length);
+            
+            if (videoTracks.length > 0) {
+                const videoSettings = videoTracks[0].getSettings();
+                console.log('Video settings:', videoSettings);
+            }
+            if (audioTracks.length > 0) {
+                const audioSettings = audioTracks[0].getSettings();
+                console.log('Audio settings:', audioSettings);
+            }
+            
             videoElem.srcObject = stream;
             videoElem.muted = true;
             currentStream = stream;
@@ -340,89 +467,42 @@ function startRecording() {
                 videoElem.onloadedmetadata = null;
             };
 
-            // --- MediaRecorder setup ---
-            recordedChunks = [];
-            recordingStopped = false;
-
-            // Find a supported MIME type
-            let mimeType = '';
-            if (MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus')) {
-                mimeType = 'video/webm;codecs=vp9,opus';
-            } else if (MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus')) {
-                mimeType = 'video/webm;codecs=vp8,opus';
-            } else if (MediaRecorder.isTypeSupported('video/webm')) {
-                mimeType = 'video/webm';
-            } else if (MediaRecorder.isTypeSupported('video/mp4')) {
-                mimeType = 'video/mp4';
-            } else {
-                mimeType = '';
-            }
-
-            try {
-                if (mimeType) {
-                    mediaRecorder = new MediaRecorder(stream, { mimeType });
-                } else {
-                    mediaRecorder = new MediaRecorder(stream);
-                }
-                console.log('MediaRecorder created successfully with mimeType:', mediaRecorder.mimeType);
-            } catch (e) {
-                console.error('Failed to create MediaRecorder:', e);
-                alert('MediaRecorder could not be created: ' + e.message);
-                return;
-            }
-
-            mediaRecorder.ondataavailable = function(event) {
-                console.log('ondataavailable: event.data.size =', event.data.size, 'type:', event.data.type);
-                if (event.data && event.data.size > 0) {
-                    recordedChunks.push(event.data);
-                    console.log('Added chunk, total chunks:', recordedChunks.length);
-                } else {
-                    console.warn('Received empty data chunk');
-                }
-            };
-
-            mediaRecorder.onerror = function(e) {
-                console.error('MediaRecorder error:', e);
-            };
-
-            mediaRecorder.onstart = function() {
-                console.log('MediaRecorder started');
-            };
-
-            mediaRecorder.onstop = function() {
-                if (recordingStopped) return;
-                recordingStopped = true;
-                console.log('MediaRecorder stopped. Total chunks:', recordedChunks.length);
-                if (recordedChunks.length === 0) {
-                    console.error('No data was recorded!');
-                } else {
-                    let totalSize = recordedChunks.reduce((acc, chunk) => acc + chunk.size, 0);
-                    console.log('Total recorded size:', totalSize, 'bytes');
-                }
-                window.recordedBlob = new Blob(recordedChunks, { type: mediaRecorder.mimeType });
-                // Only now advance to the next step
-                setTimeout(() => {
-                    executeStep(2);
-                }, 100); // Small delay to ensure all data is flushed
-            };
-
-            // Start recording with a timeslice to force periodic dataavailable events
-            // 1000ms = 1s, so we get at least one chunk per second
-            try {
-                mediaRecorder.start(1000);
-                console.log('mediaRecorder.start(1000) called');
-            } catch (e) {
-                console.error('mediaRecorder.start failed:', e);
-                alert('Recording could not be started: ' + e.message);
-                return;
-            }
-
-            // Start recording timer
-            startRecordingTimer();
+            // Start recording with the stream
+            startRecordingWithStream(stream);
         })
         .catch(function(err) {
             console.error('Error accessing media devices:', err);
-            alert('Kan geen toegang krijgen tot camera/microfoon: ' + err.message);
+            
+            // Fallback to lower quality settings for Raspberry Pi
+            console.log('Trying fallback with lower quality settings...');
+            navigator.mediaDevices.getUserMedia({ 
+                video: {
+                    width: { ideal: 640, max: 1280 },
+                    height: { ideal: 480, max: 720 },
+                    frameRate: { ideal: 25, max: 25 }
+                }, 
+                audio: {
+                    sampleRate: { ideal: 44100, max: 44100 },
+                    channelCount: { ideal: 1, max: 1 },
+                    echoCancellation: true,
+                    noiseSuppression: true,
+                    autoGainControl: true
+                }
+            })
+            .then(function(stream) {
+                console.log('Fallback stream successful');
+                videoElem.srcObject = stream;
+                videoElem.muted = true;
+                currentStream = stream;
+                
+                // Continue with recording setup...
+                // (rest of the recording logic would go here)
+                startRecordingWithStream(stream);
+            })
+            .catch(function(fallbackErr) {
+                console.error('Fallback also failed:', fallbackErr);
+                alert('Kan geen toegang krijgen tot camera/microfoon: ' + fallbackErr.message);
+            });
         });
 }
 
