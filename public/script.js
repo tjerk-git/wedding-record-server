@@ -26,6 +26,8 @@ let enterDisabled = false;
 let screenshotData = null;
 let currentPromptText = '';
 let recordingStopped = false; // Prevent double stop
+// Configurable recording duration (in seconds)
+const RECORDING_TIME_SECONDS = 30;
 
 function startCameraPreview() {
     if (!cameraPreview) return;
@@ -507,7 +509,7 @@ function startRecording() {
 }
 
 function startRecordingTimer() {
-    let recordCountdown = 10;
+    let recordCountdown = RECORDING_TIME_SECONDS;
     recordTimerElement.textContent = recordCountdown;
     if (window.recordInterval) {
         clearInterval(window.recordInterval);
