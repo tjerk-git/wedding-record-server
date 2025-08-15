@@ -5,7 +5,7 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "nodemon server.js"
+    "dev": "concurrently \"nodemon server.js\" \"wait-on http://localhost:3000 && open http://localhost:3000\""
   },
   "dependencies": {
     "cors": "^2.8.5",
@@ -14,7 +14,9 @@
     "sqlite3": "^5.1.6"
   },
   "devDependencies": {
-    "nodemon": "^3.1.10"
+    "nodemon": "^3.1.10",
+    "concurrently": "^9.0.1",
+    "wait-on": "^7.2.0"
   },
   "keywords": [
     "video",
