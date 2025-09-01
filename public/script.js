@@ -11,12 +11,12 @@ const bgElem = document.querySelector('.bg');
 let currentSection = 0;
 
 const prompts = [
-    "Wat is je favoriete herinnering aan Marlies en/of Thomas?",
-    "Natuurlijk ben ik vandaag op de bruiloft van Marlies & Thomas omdat...", 
-    "Wat wil je Marlies & Thomas meegeven?", 
-    "Wat is je eerste herinnering aan Marlies of Thomas?", 
-    "Laat je favoriete dance move zien!", 
-    "Deel een onverwacht feit over Marlies of Thomas"
+    "What is your favorite movie?",
+    "Tell me a joke!", 
+    "Tell me a secret!", 
+    "Show me your best dancemove!", 
+    "Show me something weird.", 
+    "What do you like about CMD?"
 ];
 
 let mediaRecorder;
@@ -27,7 +27,7 @@ let screenshotData = null;
 let currentPromptText = '';
 let recordingStopped = false; // Prevent double stop
 // Configurable recording duration (in seconds)
-const RECORDING_TIME_SECONDS = 30;
+const RECORDING_TIME_SECONDS = 10;
 
 function startCameraPreview() {
     if (!cameraPreview) return;
