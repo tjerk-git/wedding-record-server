@@ -102,6 +102,16 @@ h3 {
     align-items: center;
     justify-content: center;
     text-align: center;
+    animation: intro-bounce 2s ease-in-out infinite;
+}
+
+@keyframes intro-bounce {
+    0%, 100% {
+        transform: translate(-50%, -50%) scale(1);
+    }
+    50% {
+        transform: translate(-50%, -50%) scale(1.05);
+    }
 }
 
 #camera_preview {
@@ -150,20 +160,25 @@ h3 {
     display: grid;
     grid-template-columns: repeat(6, 1fr);
     grid-template-rows: repeat(4, 1fr);
-    gap: 1rem;
-    padding: 1rem;
+    gap: 0.2rem;
+    padding: 0.2rem;
     box-sizing: border-box;
 }
 
 .video-grid-item {
-    border: 2px solid rgba(131, 99, 255, 0.3);
     border-radius: 8px;
-    background: rgba(131, 99, 255, 0.1);
     position: relative;
     overflow: hidden;
 }
 
 .video-grid-item video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    opacity: 0.7;
+}
+
+.video-grid-item img {
     width: 100%;
     height: 100%;
     object-fit: cover;
@@ -302,6 +317,14 @@ h3 {
     transform: translate(-50%, -50%);
     color:#8363FF;
     font-size:8rem;
+    background:rgb(59, 59, 59);
+    border-radius: 50%;
+    width:300px;
+    height:300px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
 }
 
 #again_video{

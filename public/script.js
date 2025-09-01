@@ -236,6 +236,7 @@ function executeStep(step) {
             }
             
             let countdown = 5;
+            timerElementSection1.style.display = "flex";
             timerElementSection1.textContent =  countdown;
             if (window.countdownInterval) {
                 clearInterval(window.countdownInterval);
@@ -251,6 +252,7 @@ function executeStep(step) {
                     enterDisabled = true;
                 } else if (countdown === -1) {
                     timerElementSection1.textContent = "";
+                    timerElementSection1.style.display = "none";
                     clearInterval(window.countdownInterval);
                 }
             }, 1000);
@@ -264,6 +266,10 @@ function executeStep(step) {
             if (screenshotData) {
                 uploadScreenshot(screenshotData, currentPromptText);
             }
+            // Reload the video grid after a delay to ensure upload completes
+            setTimeout(() => {
+                loadVideoGrid();
+            }, 2000);
             if (screenshotData && screenshotContainer) {
                 screenshotContainer.innerHTML = '';
                 const img = document.createElement('img');
@@ -608,18 +614,42 @@ function loadVideoGrid() {
             const videoGrid = document.getElementById('video-grid-background');
             videoGrid.innerHTML = '';
             
+            const videos = data.videos || [];
+            // Get the last 24 videos
+            const recentVideos = videos.slice(0, 24);
+            
             // Create 24 grid items (6x4)
             for (let i = 0; i < 24; i++) {
                 const gridItem = document.createElement('div');
                 gridItem.className = 'video-grid-item';
                 
-                if (data.videos && data.videos[i]) {
-                    // If we have a video for this slot, add it
+                if (recentVideos[i]) {
                     const video = document.createElement('video');
-                    video.src = `/uploads/${data.videos[i]}`;
+                    video.src = `/uploads/${recentVideos[i]}`;
                     video.muted = true;
-                    video.loop = true;
                     video.autoplay = true;
+                    video.loop = true;
+                    video.preload = 'metadata'; // Only load metadata, not full video
+                    video.style.transform = 'scale(0.8)'; // Reduce video size for better performance
+                    
+                    // Add random clip path mask
+                    const clipPaths = [
+                        'circle(40% at 50% 50%)', // Circle
+                        'polygon(50% 0%, 0% 100%, 100% 100%)', // Triangle
+                        'inset(5% 5% 5% 5%)', // Rectangle
+                        'polygon(25% 0%, 100% 0%, 75% 100%, 0% 100%)', // Parallelogram
+                    ];
+                    
+                    const randomClip = clipPaths[i % clipPaths.length];
+                    video.style.clipPath = randomClip;
+                    
+                    // Loop only the first 10 seconds
+                    video.addEventListener('timeupdate', function() {
+                        if (video.currentTime >= 10) {
+                            video.currentTime = 0;
+                        }
+                    });
+                    
                     gridItem.appendChild(video);
                 }
                 // If no video, just show the empty outline
