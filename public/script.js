@@ -29,6 +29,9 @@ let recordingStopped = false; // Prevent double stop
 // Configurable recording duration (in seconds)
 const RECORDING_TIME_SECONDS = 10;
 
+// Configurable prompts setting
+const USE_PROMPTS = false;
+
 function startCameraPreview() {
     if (!cameraPreview) return;
     
@@ -58,7 +61,7 @@ function startCameraPreview() {
         })
         .catch(function(err) {
             console.error('Error accessing camera for preview:', err);
-            cameraPreview.innerHTML = '<div style="color: white; text-align: center; padding: 2rem;">Camera niet beschikbaar</div>';
+            cameraPreview.innerHTML = '<div style="color: white; text-align: center; padding: 2rem;">Camera not available</div>';
         });
 }
 
@@ -220,9 +223,18 @@ function executeStep(step) {
             stopCameraPreview();
             console.log("Executing Step 1: Displaying Prompt & Starting Countdown");
             enterDisabled = true;
-            let randomPrompt = prompts[Math.floor(Math.random() * prompts.length)];
-            promptElement.textContent = randomPrompt;
-            currentPromptText = randomPrompt;
+            
+            if (USE_PROMPTS) {
+                let randomPrompt = prompts[Math.floor(Math.random() * prompts.length)];
+                promptElement.textContent = randomPrompt;
+                currentPromptText = randomPrompt;
+                promptElement.style.display = 'flex';
+            } else {
+                promptElement.textContent = '';
+                currentPromptText = '';
+                promptElement.style.display = 'none';
+            }
+            
             let countdown = 5;
             timerElementSection1.textContent =  countdown;
             if (window.countdownInterval) {
@@ -402,6 +414,7 @@ function startRecording() {
     videoElem.style.top = "0";
     videoElem.style.left = "0";
     videoElem.style.zIndex = "-1";
+    videoElem.style.transform = "scaleX(-1)";
 
     if (videoDiv) {
         videoDiv.appendChild(videoElem);
@@ -503,12 +516,13 @@ function startRecording() {
             })
             .catch(function(fallbackErr) {
                 console.error('Fallback also failed:', fallbackErr);
-                alert('Kan geen toegang krijgen tot camera/microfoon: ' + fallbackErr.message);
+                alert('Cannot access camera/microphone: ' + fallbackErr.message);
             });
         });
 }
 
 function startRecordingTimer() {
+    recordTimerElement.style.display = 'flex';
     let recordCountdown = RECORDING_TIME_SECONDS;
     recordTimerElement.textContent = recordCountdown;
     if (window.recordInterval) {
@@ -520,6 +534,7 @@ function startRecordingTimer() {
             recordTimerElement.textContent = recordCountdown;
         } else {
             recordTimerElement.textContent = "";
+            recordTimerElement.style.display = 'none';
             clearInterval(window.recordInterval);
             // Stop recording when timer reaches 0
             if (mediaRecorder && mediaRecorder.state === "recording" && !recordingStopped) {
@@ -570,8 +585,8 @@ function loadImages(){
                  const img = document.createElement('img');
                  img.src = `/uploads/${filename}`;
                  img.alt = filename;
-                 img.style.maxWidth = '200px';
-                 img.style.maxHeight = '150px';
+                 img.style.maxWidth = '300px';
+                 img.style.maxHeight = '225px';
                  img.style.objectFit = 'cover';
                  img.style.borderRadius = '8px';
                  if (index === data.images.length - 1) {
@@ -586,7 +601,46 @@ function loadImages(){
      });
 }
 
+function loadVideoGrid() {
+    fetch('/api/videos')
+        .then(response => response.json())
+        .then(data => {
+            const videoGrid = document.getElementById('video-grid-background');
+            videoGrid.innerHTML = '';
+            
+            // Create 24 grid items (6x4)
+            for (let i = 0; i < 24; i++) {
+                const gridItem = document.createElement('div');
+                gridItem.className = 'video-grid-item';
+                
+                if (data.videos && data.videos[i]) {
+                    // If we have a video for this slot, add it
+                    const video = document.createElement('video');
+                    video.src = `/uploads/${data.videos[i]}`;
+                    video.muted = true;
+                    video.loop = true;
+                    video.autoplay = true;
+                    gridItem.appendChild(video);
+                }
+                // If no video, just show the empty outline
+                
+                videoGrid.appendChild(gridItem);
+            }
+        })
+        .catch(err => {
+            console.error('Failed to load video grid:', err);
+            // Still create the grid outlines even if loading fails
+            const videoGrid = document.getElementById('video-grid-background');
+            videoGrid.innerHTML = '';
+            for (let i = 0; i < 24; i++) {
+                const gridItem = document.createElement('div');
+                gridItem.className = 'video-grid-item';
+                videoGrid.appendChild(gridItem);
+            }
+        });
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     executeStep(0);
-    loadImages();
+    loadVideoGrid();
 });

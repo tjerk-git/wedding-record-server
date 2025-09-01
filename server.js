@@ -136,6 +136,33 @@ app.get('/api/images', (req, res) => {
 });
 
 
+app.get('/api/videos', (req, res) => {
+    try {
+        // Read all files in the uploads directory
+        const files = fs.readdirSync(uploadsDir);
+        // Filter for video files (e.g., .mp4, .webm, .mov, .avi)
+        const videoExtensions = ['.mp4', '.webm', '.mov', '.avi', '.mkv'];
+        const videoFiles = files.filter(file => {
+            const ext = path.extname(file).toLowerCase();
+            return videoExtensions.includes(ext);
+        });
+
+        // Sort files by modification time, newest first
+        const sortedVideoFiles = videoFiles
+            .map(file => ({
+                file,
+                mtime: fs.statSync(path.join(uploadsDir, file)).mtime
+            }))
+            .sort((a, b) => b.mtime - a.mtime) // newest first
+            .map(obj => obj.file);
+
+        res.json({ videos: sortedVideoFiles });
+    } catch (error) {
+        console.error('Error fetching videos:', error);
+        res.status(500).json({ success: false, error: 'Failed to fetch videos' });
+    }
+});
+
 app.listen(PORT, () => {
     console.log(`Server running on http://localhost:${PORT}`);
     console.log(`Uploads directory: ${uploadsDir}`);
