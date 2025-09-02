@@ -4,8 +4,26 @@ const { spawn } = require('child_process');
 const url = process.argv[2] || 'http://localhost:3000';
 
 function openOnDarwin(u) {
-  // macOS: use 'open' default browser
-  spawn('open', [u], { stdio: 'ignore', detached: true }).unref();
+  // macOS: open Chrome in fullscreen
+  const chromePaths = [
+    '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+    '/Applications/Chromium.app/Contents/MacOS/Chromium'
+  ];
+  
+  function tryChrome(index) {
+    if (index >= chromePaths.length) {
+      // Fallback to default browser if Chrome not found
+      spawn('open', [u], { stdio: 'ignore', detached: true }).unref();
+      return;
+    }
+    
+    const chromePath = chromePaths[index];
+    const child = spawn(chromePath, ['--start-fullscreen', '--new-window', u], { stdio: 'ignore', detached: true });
+    child.on('error', () => tryChrome(index + 1));
+    child.unref();
+  }
+  
+  tryChrome(0);
 }
 
 function openOnWindows(u) {
