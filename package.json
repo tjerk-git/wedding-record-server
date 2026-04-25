@@ -5,7 +5,7 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "concurrently \"nodemon server.js\" \"wait-on http://localhost:3000 && node scripts/open-browser.js http://localhost:3000\""
+    "dev": "nodemon server.js"
   },
   "engines": {
     "node": ">=22.0.0"
@@ -19,9 +19,7 @@
     "qrcode": "^1.5.4"
   },
   "devDependencies": {
-    "concurrently": "^9.0.1",
-    "nodemon": "^3.1.10",
-    "wait-on": "^7.2.0"
+    "nodemon": "^3.1.10"
   },
   "keywords": [
     "video",
