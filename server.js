@@ -128,13 +128,11 @@ app.get('/', (req, res) => {
 app.post('/api/upload/video', uploadLimiter, upload.single('video'), async (req, res) => {
     try {
         if (!req.file) return res.status(400).json({ success: false, error: 'No file uploaded' });
-        const mimeType = (req.file.mimetype || 'video/webm').split(';')[0].trim();
-        if (!ALLOWED_VIDEO_MIME.has(mimeType)) {
-            return res.status(415).json({ success: false, error: 'Unsupported file type' });
-        }
 
+        // Determine extension from MIME type; default to webm if type is absent/octet-stream
+        const rawMime = (req.file.mimetype || '').split(';')[0].trim();
+        const fileExtension = rawMime.includes('mp4') ? 'mp4' : 'webm';
         const id = crypto.randomUUID();
-        const fileExtension = mimeType.includes('mp4') ? 'mp4' : 'webm';
         const finalFilename = `${id}.${fileExtension}`;
         const filePath = path.join(uploadsDir, finalFilename);
 
