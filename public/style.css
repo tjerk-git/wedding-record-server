@@ -813,11 +813,14 @@ body {
 /* ── Oscar statue prop ────────────────────────────────── */
 
 #oscar-statue {
+  position: absolute;
+  bottom: 2rem;
+  left: 50%;
+  transform: translateX(-50%);
   width: 240px;
   height: auto;
   filter: drop-shadow(0 0 40px rgba(255, 184, 0, 0.8));
   pointer-events: none;
-  flex-shrink: 0;
 }
 
 .statue-head {
