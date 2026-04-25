@@ -732,21 +732,7 @@ async function oscarMode() {
 
     els.oscarText.textContent = 'YOUR ACCEPTANCE SPEECH';
 
-    // Paparazzi flashes during the speech
-    let paparazziActive = true;
-    const doPaparazzi = async () => {
-        while (paparazziActive) {
-            // Random delay between flashes: 2–6 seconds
-            await sleep(2000 + Math.random() * 4000);
-            if (!paparazziActive) break;
-            flashWhite();
-            playAudio(els.audioShutter);
-        }
-    };
-    doPaparazzi();
-
     const blob = await startRecording(stream, DURATIONS.oscar);
-    paparazziActive = false;
 
     playAudio(els.audioApplause);
     els.overlayOscar.classList.remove('active');
