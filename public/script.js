@@ -178,7 +178,17 @@ function onKeyDown(e) {
 }
 
 function handleEnterPress() {
-    // ── Panic (spam-while-locked easter egg) ──
+    // ── Panic state: handle first, before any enterDisabled check ──
+    if (state === 'PANIC') {
+        if (panicExitReady) {
+            transitionTo('IDLE');
+        } else {
+            advancePanic();
+        }
+        return;
+    }
+
+    // ── Panic trigger (spam-while-locked easter egg) ──
     if (enterDisabled || state === 'MODE_LOCKED' || state === 'ACTION') {
         const now = Date.now();
         panicPressTimestamps.push(now);
@@ -186,15 +196,6 @@ function handleEnterPress() {
         if (panicPressTimestamps.length >= PANIC_THRESHOLD) {
             panicPressTimestamps = [];
             enterPanic();
-        }
-        return;
-    }
-
-    if (state === 'PANIC') {
-        if (panicExitReady) {
-            transitionTo('IDLE');
-        } else {
-            advancePanic();
         }
         return;
     }
@@ -427,6 +428,7 @@ function enterPanic() {
     panicClickCount = 0;
     panicCurrentLevel = -1;
     panicExitReady  = false;
+    enterDisabled   = false;
     cleanupEverything();
     showScreen('PANIC');
     if (els.panicMessage) els.panicMessage.classList.remove('panic-exit');
