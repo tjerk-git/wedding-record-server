@@ -113,7 +113,7 @@ function renderModes() {
     container.innerHTML = '';
 
     MODES_META.forEach((m, idx) => {
-        const cfg = config.modes[m.id] || { enabled: true, duration: 15 };
+        const cfg = config.modes[m.id] || { enabled: true, duration: 15, weight: 3 };
         const card = document.createElement('div');
         card.className = 'mode-card' + (cfg.enabled ? '' : ' disabled');
         card.dataset.id = m.id;
@@ -145,6 +145,17 @@ function renderModes() {
                 </label>
             </div>
             ${durationField}
+            <div class="row weight-row">
+                <label class="row-label">Probability</label>
+                <div class="weight-slider-wrap">
+                    <input type="range" min="1" max="5" step="1" value="${cfg.weight ?? 3}"
+                           data-mode="${m.id}" data-field="weight"
+                           class="weight-slider" id="weight-${m.id}">
+                    <div class="weight-labels">
+                        <span>Very Rare</span><span>Rare</span><span>Normal</span><span>Likely</span><span>Very Likely</span>
+                    </div>
+                </div>
+            </div>
             <div class="actions">
                 <button class="btn-primary test-btn" data-mode="${m.id}">Test mode →</button>
             </div>
@@ -156,10 +167,13 @@ function renderModes() {
         input.addEventListener('change', () => {
             const id = input.dataset.mode;
             const field = input.dataset.field;
-            if (!config.modes[id]) config.modes[id] = { enabled: true, duration: 15 };
+            if (!config.modes[id]) config.modes[id] = { enabled: true, duration: 15, weight: 3 };
             if (input.type === 'checkbox') {
                 config.modes[id][field] = input.checked;
                 input.closest('.mode-card').classList.toggle('disabled', !input.checked);
+            } else if (field === 'weight') {
+                const v = Math.max(1, Math.min(5, +input.value || 3));
+                config.modes[id][field] = v;
             } else {
                 const v = Math.max(1, Math.min(120, +input.value || 0));
                 config.modes[id][field] = v;

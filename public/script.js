@@ -47,6 +47,8 @@ const CONFESSION_PROMPTS = [
 const KARAOKE_SONGS = [];
 
 const DURATIONS = { dance: 15, confession: 15, mirror: 15, oscar: 30 };
+const WEIGHTS   = { photobooth: 3, dance: 3, confession: 3, mirror: 3, oscar: 3 };
+let POOL = [];  // weighted selector pool, rebuilt by buildSelectorItems()
 let QR_DISPLAY_SECONDS = 20;
 let SELECTOR_VELOCITY = 18;
 let SHOW_CONFETTI = true;
@@ -98,7 +100,7 @@ function cacheEls() {
         'overlay-photobooth', 'photo-instruction', 'photo-countdown-display',
         'qr-loading', 'qr-image', 'qr-url', 'qr-label', 'qr-countdown',
         'record-timer', 'progress-bar', 'progress-bar-container',
-        'audio-shutter', 'audio-applause', 'audio-oscar-applause',
+        'audio-shutter', 'audio-applause', 'audio-oscar-applause', 'audio-spinner',
         'panic-message'
     ];
     ids.forEach(id => {
@@ -151,11 +153,14 @@ function applyConfig(cfg) {
             const c = cfg.modes[m.id];
             if (!c || c.enabled !== false) MODES.push(m);
         });
-        // Apply per-mode duration overrides
+        // Apply per-mode duration + weight overrides
         for (const id in cfg.modes) {
             const c = cfg.modes[id];
             if (c && typeof c.duration === 'number' && DURATIONS[id] != null) {
                 DURATIONS[id] = c.duration;
+            }
+            if (c && typeof c.weight === 'number') {
+                WEIGHTS[id] = Math.max(1, Math.min(5, c.weight));
             }
         }
     }
@@ -312,6 +317,8 @@ function startSpin() {
                 selectorAnim.offset = Math.round(selectorAnim.offset / ITEM_HEIGHT) * ITEM_HEIGHT;
                 selectorAnim.velocity = 0;
                 selectorAnim.phase = 'stopped';
+                els.audioSpinner.pause();
+                els.audioSpinner.currentTime = 0;
                 drawSelector();
                 onSelectorStopped();
                 return;
@@ -321,6 +328,7 @@ function startSpin() {
         selectorAnim.rafId = requestAnimationFrame(tick);
     };
     selectorAnim.rafId = requestAnimationFrame(tick);
+    playAudio(els.audioSpinner);
 }
 
 function stopWheelAndLock() {
@@ -331,11 +339,18 @@ function stopWheelAndLock() {
 }
 
 function buildSelectorItems() {
+    // Build weighted pool: each enabled mode appears `weight` times
+    POOL = [];
+    MODES.forEach(m => {
+        const w = WEIGHTS[m.id] ?? 3;
+        for (let i = 0; i < w; i++) POOL.push(m);
+    });
+
     const list = els.selectorList;
     list.innerHTML = '';
     for (let r = 0; r < SELECTOR_REPEATS; r++) {
-        for (let i = 0; i < MODES.length; i++) {
-            const m = MODES[i];
+        for (let i = 0; i < POOL.length; i++) {
+            const m = POOL[i];
             const item = document.createElement('div');
             item.className = 'selector-item';
             item.style.background = m.color;
@@ -350,25 +365,25 @@ function buildSelectorItems() {
 
 function drawSelector() {
     if (!selectorAnim) return;
-    const cycle = MODES.length * ITEM_HEIGHT;
+    const cycle = POOL.length * ITEM_HEIGHT;
     const o = ((selectorAnim.offset % cycle) + cycle) % cycle;
 
-    const N0 = Math.floor(SELECTOR_REPEATS / 2) * MODES.length;
+    const N0 = Math.floor(SELECTOR_REPEATS / 2) * POOL.length;
     const listTop = (SELECTOR_VIEWPORT_HEIGHT / 2 - ITEM_HEIGHT / 2) - (N0 * ITEM_HEIGHT) - o;
     els.selectorList.style.transform = `translateY(${listTop}px)`;
 
-    const idx = ((Math.round(o / ITEM_HEIGHT) % MODES.length) + MODES.length) % MODES.length;
+    const idx = ((Math.round(o / ITEM_HEIGHT) % POOL.length) + POOL.length) % POOL.length;
     const items = els.selectorList.children;
     for (let i = 0; i < items.length; i++) {
-        items[i].classList.toggle('selected', i % MODES.length === idx);
+        items[i].classList.toggle('selected', i % POOL.length === idx);
     }
 }
 
 function onSelectorStopped() {
-    const cycle = MODES.length * ITEM_HEIGHT;
+    const cycle = POOL.length * ITEM_HEIGHT;
     const o = ((selectorAnim.offset % cycle) + cycle) % cycle;
-    const idx = ((Math.round(o / ITEM_HEIGHT) % MODES.length) + MODES.length) % MODES.length;
-    showModeLocked(MODES[idx]);
+    const idx = ((Math.round(o / ITEM_HEIGHT) % POOL.length) + POOL.length) % POOL.length;
+    showModeLocked(POOL[idx]);
 }
 
 // ── Mode locked reveal ───────────────────────

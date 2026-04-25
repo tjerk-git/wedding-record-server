@@ -46,11 +46,11 @@ function requireAdmin(req, res, next) {
 // ── Admin config persistence ─────────────────────────────────────────────────
 const DEFAULT_CONFIG = {
     modes: {
-        photobooth: { enabled: true, duration: 0  },
-        dance:      { enabled: true, duration: 15 },
-        confession: { enabled: true, duration: 15 },
-        mirror:     { enabled: true, duration: 15 },
-        oscar:      { enabled: true, duration: 30 }
+        photobooth: { enabled: true, duration: 0,  weight: 3 },
+        dance:      { enabled: true, duration: 15, weight: 3 },
+        confession: { enabled: true, duration: 15, weight: 3 },
+        mirror:     { enabled: true, duration: 15, weight: 3 },
+        oscar:      { enabled: true, duration: 30, weight: 3 }
     },
     qrDisplaySeconds: 20,
     selectorVelocity: 18,
@@ -552,7 +552,8 @@ app.put('/api/config', adminLimiter, requireAdmin, (req, res) => {
                 if (!incomingMode) continue;
                 merged.modes[key] = {
                     enabled: incomingMode.enabled !== false,
-                    duration: Math.max(0, Math.min(120, Number(incomingMode.duration) || 0))
+                    duration: Math.max(0, Math.min(120, Number(incomingMode.duration) || 0)),
+                    weight:   Math.max(1, Math.min(5,   Number(incomingMode.weight)   || 3))
                 };
             }
         }
