@@ -1,3 +1,8 @@
 /node_modules
 /recordings.db
 /uploads
+/config.json
+/_site
+.DS_Store
+.env
+*.env

@@ -3,37 +3,142 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Marlies & Thomas Wedding Booth</title>
+    <title>CMD LWD Videobooth</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div class="bg"></div>
 
+    <!-- Background layers -->
+    <div id="video-grid-background"></div>
+    <img src="images/woolly.png" alt="" id="bg-shape" aria-hidden="true">
+
+    <!-- Camera feed container -->
     <div id="video"></div>
 
-    <div id="video-grid-background"></div>
-    
-    <div id="intro">
-       <h1>DO NOT PRESS THE BUTTON</h1>
+    <!-- Mirror mode canvas (draws distorted camera frames) -->
+    <canvas id="mirror-canvas"></canvas>
+
+    <!-- Flash effect (photobooth) -->
+    <div id="flash-overlay"></div>
+
+    <!-- IDLE state -->
+    <div id="screen-idle" class="screen">
+        <div id="intro">
+            <img src="images/cmd-logo.svg" class="cmd-logo" alt="CMD LWD">
+            <h1>DO NOT<br>PRESS THE<br>BUTTON</h1>
+        </div>
     </div>
 
-    <section id="section0">
-      
-    </section>
+    <!-- SPIN state (vertical selector) -->
+    <div id="screen-spin" class="screen">
+        <div id="selector-frame">
+            <div id="selector-viewport">
+                <div id="selector-list"></div>
+            </div>
+            <div id="selector-marker-top"></div>
+            <div id="selector-marker-bottom"></div>
+        </div>
+        <p id="spin-hint">PRESS THE BUTTON TO LOCK IN YOUR MODE!</p>
+    </div>
 
-    <section id="section1">
-        <div id="prompt"></div>
-        <div id="timer_section1"></div>
-        <div id="record_timer"></div>
-    </section>
+    <!-- MODE_LOCKED state (big reveal) -->
+    <div id="screen-mode-locked" class="screen">
+        <div id="mode-locked-icon"></div>
+        <div id="mode-locked-name"></div>
+    </div>
 
-    <section id="section2">
-        <h1>Success and saved!</h1>
-    </section>
+    <!-- MODE_ACTION overlays (shown over camera feed, not screens) -->
+    <div id="action-countdown"></div>
 
+    <div id="overlay-confession" class="mode-overlay">
+        <div id="confession-prompt"></div>
+    </div>
 
+    <div id="overlay-dance" class="mode-overlay">
+        <!-- Flashing colour lights -->
+        <div class="dance-light dance-light-1"></div>
+        <div class="dance-light dance-light-2"></div>
+        <div class="dance-light dance-light-3"></div>
+        <div class="dance-light dance-light-4"></div>
+        <!-- Disco balls -->
+        <div class="disco-ball-wrap disco-ball-wrap-1">
+            <div class="disco-string"></div>
+            <img class="disco-ball-img" src="images/disco-ball-png-27288.gif" alt="">
+        </div>
+        <div class="disco-ball-wrap disco-ball-wrap-2">
+            <div class="disco-string"></div>
+            <img class="disco-ball-img" src="images/disco-ball-png-27263.png" alt="">
+        </div>
+        <div id="dance-text">DANCE!</div>
+        <div id="dance-notes" aria-hidden="true"></div>
+    </div>
 
+    <div id="overlay-oscar" class="mode-overlay">
+        <div id="oscar-text"></div>
+        <img id="oscar-statue" src="images/oscar.png" alt="" aria-hidden="true">
+    </div>
 
+    <div id="overlay-photobooth" class="mode-overlay">
+        <div id="photo-instruction"></div>
+        <div id="photo-countdown-display"></div>
+        <div id="strip-preview">
+            <div class="strip-slot" id="strip-slot-0"></div>
+            <div class="strip-slot" id="strip-slot-1"></div>
+            <div class="strip-slot" id="strip-slot-2"></div>
+        </div>
+    </div>
+
+    <!-- PANIC state (secret rapid-press easter egg) -->
+    <div id="screen-panic" class="screen">
+        <div id="panic-message"></div>
+    </div>
+
+    <!-- QR state -->
+    <div id="screen-qr" class="screen">
+        <div id="qr-screen">
+            <img src="images/cmd-logo.svg" class="cmd-logo" alt="CMD LWD">
+            <p id="qr-label">Scan to keep your memory!</p>
+            <div id="qr-loading">Saving...</div>
+            <img id="qr-image" alt="QR code" style="display:none">
+            <p id="qr-url"></p>
+            <p id="qr-countdown"></p>
+        </div>
+    </div>
+
+    <!-- Persistent UI elements -->
+    <div id="corner-logo">
+        <img src="images/cmd-logo.svg" alt="CMD LWD">
+    </div>
+    <div id="progress-bar-container">
+        <div id="progress-bar"></div>
+    </div>
+    <div id="record-timer"></div>
+
+    <!-- Mode announcement sounds (played when a mode locks in) -->
+    <audio id="audio-announce-photobooth" src="audio/photobooth.mp3"     preload="auto"></audio>
+    <audio id="audio-announce-dance"      src="audio/dance.mp3"           preload="auto"></audio>
+    <audio id="audio-announce-confession" src="audio/confession.mp3"      preload="auto"></audio>
+    <audio id="audio-announce-mirror"     src="audio/funhouse-mirror.mp3" preload="auto"></audio>
+    <audio id="audio-announce-oscar"      src="audio/oscar.mp3"           preload="auto"></audio>
+
+    <!-- Effects -->
+    <audio id="audio-shutter"         src="audio/shutter.mp3"   preload="auto"></audio>
+    <audio id="audio-applause"        src="audio/applause.mp3"                      preload="auto"></audio>
+    <audio id="audio-oscar-applause"  src="audio/applause.mp3"                      preload="auto"></audio>
+
+    <!-- Dance music tracks -->
+    <audio id="audio-dance-0" src="audio/dance music/C-Funk.mp3"              preload="auto"></audio>
+    <audio id="audio-dance-1" src="audio/dance music/Circus Waltz FX.mp3"     preload="auto"></audio>
+    <audio id="audio-dance-2" src="audio/dance music/Disco con Tutti.mp3"     preload="auto"></audio>
+    <audio id="audio-dance-3" src="audio/dance music/Who Likes to Party.mp3"  preload="auto"></audio>
+
+    <!-- Secret panic sounds -->
+    <audio id="audio-panic-0" src="audio/stop.mp3"                           preload="auto"></audio>
+    <audio id="audio-panic-1" src="audio/don't.mp3"                          preload="auto"></audio>
+    <audio id="audio-panic-2" src="audio/please-stop-pressing-the-button.mp3" preload="auto"></audio>
+    <audio id="audio-panic-3" src="audio/why-are-you-doing-this.mp3"         preload="auto"></audio>
+    <audio id="audio-panic-4" src="audio/i'm-calling-my-mom.mp3"             preload="auto"></audio>
+    <audio id="audio-panic-5" src="audio/self-destruct.mp3"                  preload="auto"></audio>
 
     <script src="confetti.js"></script>
     <script src="script.js"></script>

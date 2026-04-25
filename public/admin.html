@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>CMD LWD — Admin</title>
+    <link rel="stylesheet" href="admin.css">
+</head>
+<body>
+    <header>
+        <img src="images/cmd-logo.svg" alt="CMD LWD" class="brand-mark">
+        <div class="brand-text">
+            <h1>VIDEOBOOTH</h1>
+            <p>Control panel</p>
+        </div>
+        <div class="header-actions">
+            <span id="save-status" class="save-status"></span>
+            <a href="/" target="_blank" class="btn-link">Open kiosk →</a>
+        </div>
+    </header>
+
+    <nav class="tabs" role="tablist">
+        <button data-tab="modes"    class="tab active" role="tab">Modes</button>
+        <button data-tab="settings" class="tab"        role="tab">Settings</button>
+        <button data-tab="uploads"  class="tab"        role="tab">Uploads</button>
+    </nav>
+
+    <main>
+        <section id="tab-modes" class="tab-panel active">
+            <div class="section-head">
+                <h2>Modes</h2>
+                <p>Toggle which modes appear on the kiosk selector. Click <em>Test</em> to launch a mode in a new tab.</p>
+            </div>
+            <div id="mode-cards"></div>
+        </section>
+
+        <section id="tab-settings" class="tab-panel">
+            <div class="section-head">
+                <h2>Settings</h2>
+                <p>Tune kiosk behavior. Changes save automatically and apply on next page load.</p>
+            </div>
+            <div id="settings-form"></div>
+        </section>
+
+        <section id="tab-uploads" class="tab-panel">
+            <div class="section-head">
+                <h2>Uploads</h2>
+                <p>Recordings and photo strips collected from the kiosk.</p>
+                <div class="section-head-actions">
+                    <button id="reload-uploads"   class="btn-secondary">Refresh</button>
+                    <a      id="download-all-btn" class="btn-secondary" href="/api/uploads/download-all" download>Download all</a>
+                    <button id="delete-all-btn"   class="btn-danger">Delete all</button>
+                </div>
+            </div>
+            <div id="uploads-list"></div>
+        </section>
+    </main>
+
+    <div id="toast" role="status" aria-live="polite"></div>
+    <script src="admin.js"></script>
+</body>
+</html>

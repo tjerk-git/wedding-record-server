@@ -7,15 +7,20 @@
     "start": "node server.js",
     "dev": "concurrently \"nodemon server.js\" \"wait-on http://localhost:3000 && node scripts/open-browser.js http://localhost:3000\""
   },
+  "engines": {
+    "node": ">=22.0.0"
+  },
   "dependencies": {
-    "cors": "^2.8.5",
+    "archiver": "^7.0.1",
     "express": "^4.18.2",
+    "express-rate-limit": "^8.4.1",
+    "helmet": "^8.1.0",
     "multer": "^1.4.5-lts.1",
-    "sqlite3": "^5.1.6"
+    "qrcode": "^1.5.4"
   },
   "devDependencies": {
-    "nodemon": "^3.1.10",
     "concurrently": "^9.0.1",
+    "nodemon": "^3.1.10",
     "wait-on": "^7.2.0"
   },
   "keywords": [
