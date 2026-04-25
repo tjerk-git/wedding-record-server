@@ -708,13 +708,15 @@ async function oscarMode() {
     showScreen('ACTION');
     els.overlayOscar.classList.add('active');
 
-    // Start with applause
-    playAudio(els.audioOscarApplause);
-
+    // Let the mode-locked announcer (oscar.mp3) finish, then play opening applause
     els.oscarText.textContent = 'AND THE OSCAR GOES TO...';
     if (SHOW_CONFETTI && typeof confetti === 'function') {
         confetti({ particleCount: 80, spread: 90, origin: { y: 0.4 }, colors: ['#FFB800', '#FFD700', '#FFF59D'] });
     }
+
+    // Short pause so the announcer from the mode-locked screen is clearly heard
+    await sleep(600);
+    playAudio(els.audioOscarApplause);
 
     await sleep(2200);
     els.oscarText.textContent = 'YOU!';
