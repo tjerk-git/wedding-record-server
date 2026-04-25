@@ -128,7 +128,7 @@ app.get('/', (req, res) => {
 app.post('/api/upload/video', uploadLimiter, upload.single('video'), async (req, res) => {
     try {
         if (!req.file) return res.status(400).json({ success: false, error: 'No file uploaded' });
-        const mimeType = req.file.mimetype || 'video/webm';
+        const mimeType = (req.file.mimetype || 'video/webm').split(';')[0].trim();
         if (!ALLOWED_VIDEO_MIME.has(mimeType)) {
             return res.status(415).json({ success: false, error: 'Unsupported file type' });
         }
@@ -309,7 +309,7 @@ app.get('/v/:id', (req, res) => {
 app.post('/api/upload/strip', uploadLimiter, upload.single('strip'), async (req, res) => {
     try {
         if (!req.file) return res.status(400).json({ success: false, error: 'No file uploaded' });
-        if (!ALLOWED_IMAGE_MIME.has(req.file.mimetype)) {
+        if (!ALLOWED_IMAGE_MIME.has(req.file.mimetype.split(';')[0].trim())) {
             return res.status(415).json({ success: false, error: 'Unsupported file type' });
         }
 
@@ -442,7 +442,7 @@ app.get('/s/:id', (req, res) => {
 app.post('/api/upload/screenshot', uploadLimiter, upload.single('screenshot'), (req, res) => {
     try {
         if (!req.file) return res.status(400).json({ success: false, error: 'No file uploaded' });
-        if (!ALLOWED_IMAGE_MIME.has(req.file.mimetype)) {
+        if (!ALLOWED_IMAGE_MIME.has(req.file.mimetype.split(';')[0].trim())) {
             return res.status(415).json({ success: false, error: 'Unsupported file type' });
         }
 
