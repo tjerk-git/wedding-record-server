@@ -4,6 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const archiver = require('archiver');
 const crypto = require('crypto');
+const { spawn } = require('child_process');
 const QRCode = require('qrcode');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
@@ -15,10 +16,53 @@ const BASE_URL = process.env.BASE_URL || `http://localhost:${PORT}`;
 // ── Data directory (override with DATA_DIR env var; /data on Fly.io) ─────────
 const DATA_DIR = process.env.DATA_DIR || __dirname;
 const uploadsDir = path.join(DATA_DIR, 'uploads');
+const dancefloorDir = path.join(DATA_DIR, 'dancefloor');
 const CONFIG_PATH = path.join(DATA_DIR, 'config.json');
 
 if (!fs.existsSync(uploadsDir)) {
     fs.mkdirSync(uploadsDir, { recursive: true });
+}
+if (!fs.existsSync(dancefloorDir)) {
+    fs.mkdirSync(dancefloorDir, { recursive: true });
+}
+
+// ── Cutout extraction (dance mode) ───────────────────────────────────────────
+const CUTOUT_SCRIPT = path.join(__dirname, 'scripts', 'extract-cutouts.mjs');
+
+// Connected dancefloor SSE subscribers.
+const dancefloorClients = new Set();
+
+function broadcastDancer(payload) {
+    const line = `event: dancer\ndata: ${JSON.stringify(payload)}\n\n`;
+    for (const res of dancefloorClients) {
+        try { res.write(line); } catch { dancefloorClients.delete(res); }
+    }
+}
+
+function spawnCutoutJob(videoPath, id) {
+    const outDir = path.join(dancefloorDir, id);
+    const child = spawn(process.execPath, [CUTOUT_SCRIPT, videoPath, outDir], {
+        cwd: __dirname,
+        stdio: ['ignore', 'pipe', 'pipe'],
+        detached: false,
+    });
+    const tag = `[cutout ${id.slice(0, 8)}]`;
+    child.stdout.on('data', d => process.stdout.write(`${tag} ${d}`));
+    child.stderr.on('data', d => process.stderr.write(`${tag} ${d}`));
+    child.on('exit', code => {
+        if (code === 0) {
+            console.log(`${tag} done`);
+            broadcastDancer({
+                id,
+                frames: 5,
+                base: `/dancefloor-assets/${id}`,
+                mtime: Date.now(),
+            });
+        } else {
+            console.error(`${tag} exited ${code}`);
+        }
+    });
+    child.on('error', err => console.error(`${tag} spawn error:`, err));
 }
 
 // ── Admin password (optional) ────────────────────────────────────────────────
@@ -108,6 +152,7 @@ const adminLimiter = rateLimit({
 app.use(express.json());
 app.use(express.static('public'));
 app.use('/uploads', express.static(uploadsDir));
+app.use('/dancefloor-assets', express.static(dancefloorDir, { maxAge: '1h', immutable: true }));
 
 // ── Multer (memory storage, 50 MB limit) ─────────────────────────────────────
 const ALLOWED_VIDEO_MIME = new Set(['video/webm', 'video/mp4', 'video/quicktime']);
@@ -133,10 +178,15 @@ app.post('/api/upload/video', uploadLimiter, upload.single('video'), async (req,
         const rawMime = (req.file.mimetype || '').split(';')[0].trim();
         const fileExtension = rawMime.includes('mp4') ? 'mp4' : 'webm';
         const id = crypto.randomUUID();
-        const finalFilename = `${id}.${fileExtension}`;
+        const mode = String(req.body?.mode || '').replace(/[^a-z0-9_-]/gi, '').slice(0, 32);
+        const finalFilename = mode ? `${id}__${mode}.${fileExtension}` : `${id}.${fileExtension}`;
         const filePath = path.join(uploadsDir, finalFilename);
 
         fs.writeFileSync(filePath, req.file.buffer);
+
+        if (mode === 'dance') {
+            spawnCutoutJob(filePath, id);
+        }
 
         const videoUrl = `${BASE_URL}/v/${id}`;
         const qrDataUrl = await QRCode.toDataURL(videoUrl, {
@@ -522,6 +572,57 @@ app.get('/api/videos', (req, res) => {
     } catch (error) {
         console.error('Error fetching videos:', error);
         res.status(500).json({ success: false, error: 'Failed to fetch videos' });
+    }
+});
+
+// ── Dancefloor ────────────────────────────────────────────────────────────────
+app.get('/dancefloor', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'dancefloor.html'));
+});
+
+app.get('/api/dancefloor/stream', (req, res) => {
+    res.set({
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache, no-transform',
+        'Connection': 'keep-alive',
+        'X-Accel-Buffering': 'no', // disable proxy buffering (e.g. nginx)
+    });
+    res.flushHeaders();
+    res.write(': connected\n\n');
+    dancefloorClients.add(res);
+
+    const keepalive = setInterval(() => {
+        try { res.write(': keepalive\n\n'); } catch {}
+    }, 15000);
+
+    req.on('close', () => {
+        clearInterval(keepalive);
+        dancefloorClients.delete(res);
+    });
+});
+
+app.get('/api/dancefloor', (req, res) => {
+    try {
+        const entries = fs.readdirSync(dancefloorDir, { withFileTypes: true });
+        const dancers = [];
+        for (const e of entries) {
+            if (!e.isDirectory()) continue;
+            if (e.name.endsWith('.partial')) continue;
+            const dir = path.join(dancefloorDir, e.name);
+            const last = path.join(dir, 'cutout-4.png');
+            if (!fs.existsSync(last)) continue; // job still running or failed
+            dancers.push({
+                id: e.name,
+                frames: 5,
+                base: `/dancefloor-assets/${e.name}`,
+                mtime: fs.statSync(last).mtimeMs,
+            });
+        }
+        dancers.sort((a, b) => b.mtime - a.mtime);
+        res.json({ dancers });
+    } catch (error) {
+        console.error('dancefloor list error:', error);
+        res.status(500).json({ success: false, error: 'Failed to list dancers' });
     }
 });
 

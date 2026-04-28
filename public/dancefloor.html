@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+  <title>CMD LWD — Dancefloor</title>
+  <style>
+    html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
+    body { font-family: -apple-system, system-ui, sans-serif; color: #888; }
+    canvas { display: block; position: fixed; inset: 0; z-index: 2; }
+
+    /* Background DANCE word — pulsing rainbow, sits behind the dancers */
+    #dance-bg {
+      position: fixed; inset: 0; z-index: 1;
+      display: flex; align-items: center; justify-content: center;
+      pointer-events: none;
+      font-weight: 900;
+      font-size: clamp(8rem, 28vw, 28rem);
+      letter-spacing: -0.04em;
+      line-height: 0.85;
+      text-align: center;
+      background-clip: text; -webkit-background-clip: text;
+      color: transparent;
+      background-image: linear-gradient(45deg,
+        #ff2d95, #ff8a00, #f5d000, #00d97e, #00b3ff, #8126ff, #ff2d95);
+      background-size: 300% 300%;
+      animation: hue 6s linear infinite, pulse 1.6s ease-in-out infinite;
+      filter: drop-shadow(0 0 30px rgba(255, 45, 149, 0.35));
+      opacity: 0.45;
+    }
+    @keyframes hue {
+      0%   { background-position: 0% 50%; }
+      100% { background-position: 300% 50%; }
+    }
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); }
+      50%      { transform: scale(1.06); }
+    }
+
+    /* Disco balls hanging from the top */
+    .disco-rope {
+      position: fixed; top: -2vh; z-index: 3;
+      width: 3px; height: 12vh;
+      background: linear-gradient(to bottom, #444, #222);
+      pointer-events: none;
+      transform-origin: top center;
+      animation: sway 4.5s ease-in-out infinite;
+    }
+    .disco-ball {
+      position: absolute; top: 100%; left: 50%;
+      transform: translateX(-50%);
+      width: 11vh; height: auto;
+      filter: drop-shadow(0 0 20px rgba(255, 255, 255, 0.45))
+              drop-shadow(0 0 60px rgba(180, 200, 255, 0.3));
+    }
+    @keyframes sway {
+      0%, 100% { transform: rotate(-4deg); }
+      50%      { transform: rotate(4deg); }
+    }
+
+    /* Bouncing DVD logo (the original dancer) */
+    #dvd-logo {
+      position: fixed; top: 0; left: 0; z-index: 3;
+      width: 14vh; height: auto;
+      pointer-events: none;
+      will-change: transform, filter;
+      /* black PNG -> invert to white, then hue-rotate tints any color */
+      filter: invert(1) hue-rotate(0deg) saturate(3) drop-shadow(0 0 12px rgba(255,255,255,0.25));
+      transition: filter 0.15s ease-out;
+    }
+
+    /* Dancing cats along the bottom — the gif already animates itself */
+    .cat {
+      position: fixed; bottom: 1vh; z-index: 3;
+      width: 9vh; height: auto;
+      pointer-events: none;
+      filter: drop-shadow(0 4px 8px rgba(0,0,0,0.6));
+    }
+
+    #empty {
+      position: fixed; inset: 0; z-index: 4;
+      display: flex; align-items: center; justify-content: center;
+      text-align: center; pointer-events: none;
+      color: #444; font-size: 1.1rem; letter-spacing: 0.08em; text-transform: uppercase;
+    }
+    #empty.hidden { display: none; }
+    #count {
+      position: fixed; bottom: 14px; right: 18px; z-index: 4;
+      font-size: 0.7rem; letter-spacing: 0.16em; text-transform: uppercase;
+      color: #333; pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+  <div id="dance-bg">DANCE</div>
+  <canvas id="stage"></canvas>
+  <img id="dvd-logo" src="/images/dvd-logo.png" alt="">
+
+  <!-- Disco balls hanging from top -->
+  <div class="disco-rope" style="left: 18%; animation-delay: -0.2s;">
+    <img class="disco-ball" src="/images/disco-ball-png-27288.gif" alt="">
+  </div>
+  <div class="disco-rope" style="left: 50%; animation-delay: -1.6s; height: 9vh;">
+    <img class="disco-ball" src="/images/disco-ball-png-27288.gif" alt="" style="width: 14vh;">
+  </div>
+  <div class="disco-rope" style="left: 82%; animation-delay: -2.8s;">
+    <img class="disco-ball" src="/images/disco-ball-png-27288.gif" alt="">
+  </div>
+
+  <!-- Dancing cats along the bottom -->
+  <img class="cat" src="/images/catjam-cat.gif" alt=""    style="left:  6%;">
+  <img class="cat" src="/images/scuba-scuba-dance.gif" alt="" style="left: 24%;">
+  <img class="cat" src="/images/catjam-cat.gif" alt=""    style="left: 42%;">
+  <img class="cat" src="/images/scuba-scuba-dance.gif" alt="" style="left: 60%;">
+  <img class="cat" src="/images/catjam-cat.gif" alt=""    style="left: 78%;">
+  <img class="cat" src="/images/scuba-scuba-dance.gif" alt="" style="left: 92%;">
+
+  <div id="empty">waiting for the first dance…</div>
+  <div id="count"></div>
+  <script>
+    const canvas = document.getElementById('stage');
+    const ctx = canvas.getContext('2d');
+    const empty = document.getElementById('empty');
+    const countEl = document.getElementById('count');
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    function resize() {
+      canvas.width = innerWidth * dpr;
+      canvas.height = innerHeight * dpr;
+      canvas.style.width = innerWidth + 'px';
+      canvas.style.height = innerHeight + 'px';
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+    resize();
+    addEventListener('resize', resize);
+
+    const dancers = [];
+    const seen = new Set();
+
+    function loadImg(src) {
+      return new Promise((res, rej) => {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => res(img);
+        img.onerror = rej;
+        img.src = src;
+      });
+    }
+
+    async function addDancer(d) {
+      if (seen.has(d.id)) return;
+      seen.add(d.id);
+      const urls = Array.from({ length: d.frames }, (_, i) => `${d.base}/cutout-${i}.png`);
+      let frames;
+      try {
+        frames = await Promise.all(urls.map(loadImg));
+      } catch (e) {
+        console.warn('failed to load dancer', d.id, e);
+        seen.delete(d.id);
+        return;
+      }
+      const h = innerHeight * (0.22 + Math.random() * 0.18); // 22–40% of viewport height
+      const ratio = frames[0].width / frames[0].height;
+      const w = h * ratio;
+      const speed = 70 + Math.random() * 90;
+      const angle = Math.random() * Math.PI * 2;
+      dancers.push({
+        id: d.id,
+        frames, w, h,
+        x: Math.random() * (innerWidth - w),
+        y: Math.random() * (innerHeight - h),
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        frameIdx: Math.floor(Math.random() * frames.length),
+        frameDelay: 0.18 + Math.random() * 0.10,
+        frameTick: 0,
+      });
+      empty.classList.add('hidden');
+      countEl.textContent = `${dancers.length} dancer${dancers.length === 1 ? '' : 's'}`;
+    }
+
+    async function refresh() {
+      try {
+        const r = await fetch('/api/dancefloor', { cache: 'no-store' });
+        if (!r.ok) return;
+        const { dancers: list } = await r.json();
+        for (const d of list) await addDancer(d);
+      } catch (e) {
+        console.warn('refresh failed', e);
+      }
+    }
+
+    // Bouncing DVD logo state
+    const dvd = document.getElementById('dvd-logo');
+    const dvdState = {
+      x: innerWidth * 0.3,
+      y: innerHeight * 0.3,
+      vx: 140,
+      vy: 110,
+      hue: 0,
+    };
+    function shiftHue() { dvdState.hue = (dvdState.hue + 47) % 360; }
+
+    let last = performance.now();
+    function tick(now) {
+      const dt = Math.min(0.05, (now - last) / 1000);
+      last = now;
+      ctx.clearRect(0, 0, innerWidth, innerHeight);
+
+      // DVD logo bounce
+      const dvdW = dvd.offsetWidth || 1;
+      const dvdH = dvd.offsetHeight || 1;
+      dvdState.x += dvdState.vx * dt;
+      dvdState.y += dvdState.vy * dt;
+      if (dvdState.x < 0)                    { dvdState.x = 0; dvdState.vx *= -1; shiftHue(); }
+      if (dvdState.x + dvdW > innerWidth)    { dvdState.x = innerWidth - dvdW; dvdState.vx *= -1; shiftHue(); }
+      if (dvdState.y < 0)                    { dvdState.y = 0; dvdState.vy *= -1; shiftHue(); }
+      if (dvdState.y + dvdH > innerHeight)   { dvdState.y = innerHeight - dvdH; dvdState.vy *= -1; shiftHue(); }
+      dvd.style.transform = `translate(${dvdState.x}px, ${dvdState.y}px)`;
+      dvd.style.filter = `invert(1) hue-rotate(${dvdState.hue}deg) saturate(3) drop-shadow(0 0 12px rgba(255,255,255,0.25))`;
+
+      for (const d of dancers) {
+        d.x += d.vx * dt;
+        d.y += d.vy * dt;
+        if (d.x < 0)                   { d.x = 0; d.vx *= -1; }
+        if (d.x + d.w > innerWidth)    { d.x = innerWidth - d.w; d.vx *= -1; }
+        if (d.y < 0)                   { d.y = 0; d.vy *= -1; }
+        if (d.y + d.h > innerHeight)   { d.y = innerHeight - d.h; d.vy *= -1; }
+        d.frameTick += dt;
+        if (d.frameTick >= d.frameDelay) {
+          d.frameTick = 0;
+          d.frameIdx = (d.frameIdx + 1) % d.frames.length;
+        }
+        ctx.drawImage(d.frames[d.frameIdx], d.x, d.y, d.w, d.h);
+      }
+      requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick);
+
+    refresh(); // initial hydration
+
+    // Live updates via SSE — EventSource auto-reconnects on disconnect.
+    const es = new EventSource('/api/dancefloor/stream');
+    es.addEventListener('dancer', e => {
+      try {
+        const d = JSON.parse(e.data);
+        addDancer(d);
+      } catch (err) {
+        console.warn('bad dancer event', err);
+      }
+    });
+    es.addEventListener('error', () => { /* EventSource auto-reconnects */ });
+  </script>
+</body>
+</html>

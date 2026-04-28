@@ -1,0 +1,133 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>cutout dance floor preview</title>
+  <style>
+    html, body { margin: 0; height: 100%; background: #000; overflow: hidden; font-family: system-ui, sans-serif; color: #888; }
+    #drop { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; text-align: center; pointer-events: none; }
+    #drop.hidden { display: none; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+  <div id="drop">
+    <div>
+      <p style="font-size: 24px; color: #ccc;">drop your 5 cutout PNGs here</p>
+      <p>(the cutout-*.png files from out/&lt;video&gt;/)</p>
+    </div>
+  </div>
+  <canvas id="stage"></canvas>
+  <script>
+    const canvas = document.getElementById('stage');
+    const ctx = canvas.getContext('2d');
+    const drop = document.getElementById('drop');
+    function resize() { canvas.width = innerWidth; canvas.height = innerHeight; }
+    resize();
+    addEventListener('resize', resize);
+
+    const dancers = []; // { frames: [Image], x, y, vx, vy, w, h, frameIdx, frameDelay, frameTick }
+
+    function loadImage(file) {
+      return new Promise((res, rej) => {
+        const img = new Image();
+        img.onload = () => res(img);
+        img.onerror = rej;
+        img.src = URL.createObjectURL(file);
+      });
+    }
+
+    async function addDancerFromFiles(files) {
+      const pngs = [...files].filter(f => f.type === 'image/png').sort((a, b) => a.name.localeCompare(b.name));
+      if (pngs.length === 0) return;
+      const frames = await Promise.all(pngs.map(loadImage));
+      // For testing with one set, spawn several copies bouncing in different directions.
+      const copies = 6;
+      for (let i = 0; i < copies; i++) {
+        const scale = 0.25 + Math.random() * 0.15;
+        const w = frames[0].width * scale;
+        const h = frames[0].height * scale;
+        dancers.push({
+          frames,
+          w, h,
+          x: Math.random() * (canvas.width - w),
+          y: Math.random() * (canvas.height - h),
+          vx: (Math.random() < 0.5 ? -1 : 1) * (60 + Math.random() * 80),
+          vy: (Math.random() < 0.5 ? -1 : 1) * (60 + Math.random() * 80),
+          frameIdx: Math.floor(Math.random() * frames.length),
+          frameDelay: 0.12, // seconds per frame
+          frameTick: 0,
+        });
+      }
+      drop.classList.add('hidden');
+    }
+
+    addEventListener('dragover', e => e.preventDefault());
+    addEventListener('drop', e => {
+      e.preventDefault();
+      addDancerFromFiles(e.dataTransfer.files);
+    });
+
+    // Auto-load via ?dir=<relative path containing cutout-*.png>
+    async function autoLoad() {
+      const params = new URLSearchParams(location.search);
+      const dir = params.get('dir');
+      if (!dir) return;
+      const count = parseInt(params.get('n') || '5', 10);
+      const frames = [];
+      for (let i = 0; i < count; i++) {
+        const url = `${dir.replace(/\/$/, '')}/cutout-${i}.png`;
+        const r = await fetch(url);
+        if (!r.ok) { console.warn('missing', url); continue; }
+        const blob = await r.blob();
+        const img = new Image();
+        await new Promise(res => { img.onload = res; img.src = URL.createObjectURL(blob); });
+        frames.push(img);
+      }
+      if (!frames.length) return;
+      const copies = parseInt(params.get('copies') || '8', 10);
+      for (let i = 0; i < copies; i++) {
+        const scale = 0.18 + Math.random() * 0.18;
+        const w = frames[0].width * scale;
+        const h = frames[0].height * scale;
+        dancers.push({
+          frames, w, h,
+          x: Math.random() * (canvas.width - w),
+          y: Math.random() * (canvas.height - h),
+          vx: (Math.random() < 0.5 ? -1 : 1) * (60 + Math.random() * 80),
+          vy: (Math.random() < 0.5 ? -1 : 1) * (60 + Math.random() * 80),
+          frameIdx: Math.floor(Math.random() * frames.length),
+          frameDelay: 0.12,
+          frameTick: 0,
+        });
+      }
+      drop.classList.add('hidden');
+    }
+    autoLoad();
+
+    let last = performance.now();
+    function tick(now) {
+      const dt = Math.min(0.05, (now - last) / 1000);
+      last = now;
+      ctx.fillStyle = '#000';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      for (const d of dancers) {
+        d.x += d.vx * dt;
+        d.y += d.vy * dt;
+        if (d.x < 0)               { d.x = 0; d.vx *= -1; }
+        if (d.x + d.w > canvas.width)  { d.x = canvas.width - d.w; d.vx *= -1; }
+        if (d.y < 0)               { d.y = 0; d.vy *= -1; }
+        if (d.y + d.h > canvas.height) { d.y = canvas.height - d.h; d.vy *= -1; }
+        d.frameTick += dt;
+        if (d.frameTick >= d.frameDelay) {
+          d.frameTick = 0;
+          d.frameIdx = (d.frameIdx + 1) % d.frames.length;
+        }
+        ctx.drawImage(d.frames[d.frameIdx], d.x, d.y, d.w, d.h);
+      }
+      requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick);
+  </script>
+</body>
+</html>

@@ -1,6 +1,8 @@
 /node_modules
 /recordings.db
 /uploads
+/dancefloor
+/out
 /config.json
 /_site
 .DS_Store
