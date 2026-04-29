@@ -21,8 +21,8 @@ primary_region = "ams"
     soft_limit = 80
 
 [[vm]]
-  size = "shared-cpu-1x"
-  memory = "1gb"
+  size = "shared-cpu-2x"
+  memory = "4gb"
 
 [[mounts]]
   source = "videobooth_data"
