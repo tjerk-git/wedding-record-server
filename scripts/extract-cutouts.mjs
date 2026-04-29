@@ -38,7 +38,18 @@ function ffprobeDuration(file) {
     file,
   ], { encoding: 'utf8' });
   if (r.status !== 0) throw new Error(`ffprobe failed: ${r.stderr}`);
-  return parseFloat(r.stdout.trim());
+  const d = parseFloat(r.stdout.trim());
+  if (Number.isFinite(d) && d > 0) return d;
+
+  // MediaRecorder webm files often lack a segment duration in the header,
+  // so ffprobe returns N/A. Fall back to demuxing the whole file and
+  // parsing the last "time=HH:MM:SS.mmm" line from ffmpeg's stderr.
+  const r2 = spawnSync('ffmpeg', ['-i', file, '-f', 'null', '-'], { encoding: 'utf8' });
+  const stderr = r2.stderr || '';
+  const matches = [...stderr.matchAll(/time=(\d+):(\d+):(\d+(?:\.\d+)?)/g)];
+  if (matches.length === 0) throw new Error(`could not determine duration: ${stderr}`);
+  const [, h, m, s] = matches[matches.length - 1];
+  return parseInt(h, 10) * 3600 + parseInt(m, 10) * 60 + parseFloat(s);
 }
 
 try {
