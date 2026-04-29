@@ -281,6 +281,27 @@ async function loadUploads() {
                 }
             });
         });
+
+        container.querySelectorAll('.cutout-btn').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                const name = btn.dataset.name;
+                btn.disabled = true;
+                try {
+                    const r = await fetch('/api/uploads/' + encodeURIComponent(name) + '/cutouts', { method: 'POST' });
+                    const j = await r.json();
+                    if (r.ok && j.success) {
+                        toast('Cutout job queued · check /dancefloor in ~30s');
+                    } else {
+                        toast('Failed: ' + (j.error || 'unknown'));
+                    }
+                } catch {
+                    toast('Cutout request failed');
+                } finally {
+                    btn.disabled = false;
+                }
+            });
+        });
     } catch (e) {
         container.innerHTML = '<p class="empty-state" style="color:var(--color-danger)">Failed to load uploads.</p>';
     }
@@ -320,9 +341,11 @@ function renderUploadTile(file) {
 function metaRow(file, dateStr, shareUrl, downloadUrl) {
     const row = document.createElement('div');
     row.className = 'meta';
+    const isVideo = /\.(webm|mp4|mov)$/i.test(file.name);
     const buttons = [];
     if (shareUrl)    buttons.push(`<a class="icon-btn" href="${shareUrl}" target="_blank" rel="noopener" title="Open">↗</a>`);
     if (downloadUrl) buttons.push(`<a class="icon-btn" href="${downloadUrl}" download title="Download">↓</a>`);
+    if (isVideo)     buttons.push(`<button class="icon-btn cutout-btn" data-name="${escapeHtml(file.name)}" title="Extract dancefloor cutouts">✂</button>`);
     buttons.push(`<button class="icon-btn danger delete-btn" data-name="${escapeHtml(file.name)}" title="Delete">×</button>`);
     row.innerHTML = `
         <span class="name" title="${escapeHtml(file.name)}">${dateStr}</span>

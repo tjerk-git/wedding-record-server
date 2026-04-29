@@ -735,6 +735,31 @@ app.delete('/api/uploads/:filename', adminLimiter, requireAdmin, (req, res) => {
     }
 });
 
+// ── Manually re-run cutout extraction on an existing upload ──────────────────
+app.post('/api/uploads/:filename/cutouts', adminLimiter, requireAdmin, (req, res) => {
+    try {
+        const filename = req.params.filename;
+        if (!filename || filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
+            return res.status(400).json({ success: false, error: 'Invalid filename' });
+        }
+        const filePath = path.join(uploadsDir, filename);
+        if (!filePath.startsWith(uploadsDir + path.sep)) {
+            return res.status(400).json({ success: false, error: 'Invalid path' });
+        }
+        if (!fs.existsSync(filePath)) return res.status(404).json({ success: false, error: 'Not found' });
+        if (!/\.(webm|mp4|mov)$/i.test(filename)) {
+            return res.status(400).json({ success: false, error: 'Not a video file' });
+        }
+        // Filename pattern: <uuid>__<mode>.<ext> or <uuid>.<ext>
+        const stem = filename.replace(/\.[^.]+$/, '');
+        const id = stem.split('__')[0];
+        spawnCutoutJob(filePath, id);
+        res.json({ success: true, id });
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
 // ── Bulk delete all uploads ───────────────────────────────────────────────────
 app.delete('/api/uploads', adminLimiter, requireAdmin, (req, res) => {
     try {
