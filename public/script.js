@@ -108,7 +108,7 @@ function cacheEls() {
         els[camelKey] = document.getElementById(id);
     });
     els.stripSlots = [0, 1, 2].map(i => document.getElementById('strip-slot-' + i));
-    els.danceAudio = [0, 1, 2, 3].map(i => document.getElementById('audio-dance-' + i));
+    els.danceAudio = [0, 1].map(i => document.getElementById('audio-dance-' + i));
     els.panicAudio = [0, 1, 2, 3, 4, 5].map(i => document.getElementById('audio-panic-' + i));
 }
 
