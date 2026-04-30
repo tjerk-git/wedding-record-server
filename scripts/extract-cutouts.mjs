@@ -3,9 +3,9 @@ import { mkdirSync, readFileSync, writeFileSync, rmSync, renameSync, existsSync 
 import { basename, extname, join, resolve } from 'node:path';
 import { removeBackground } from '@imgly/background-removal-node';
 
-const FRAME_COUNT = 8;
+const FRAME_COUNT = 6;
 const MAX_HEIGHT = 720;
-const MODEL = 'medium'; // 'small' | 'medium'
+const MODEL = 'small'; // 'small' | 'medium'
 
 const videoArg = process.argv[2];
 if (!videoArg) {

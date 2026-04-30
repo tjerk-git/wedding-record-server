@@ -148,9 +148,28 @@
     }
 
     async function addDancer(d) {
-      if (seen.has(d.id)) return;
+      if (seen.has(d.id)) {
+        // Upgrade: if this is the full cutout arriving for an already-showing placeholder, swap frames.
+        if (d.cutout) {
+          const existing = dancers.find(x => x.id === d.id);
+          if (existing) {
+            const urls = Array.from({ length: d.frames }, (_, i) => `${d.base}/cutout-${i}.png`);
+            try {
+              const frames = await Promise.all(urls.map(loadImg));
+              existing.frames = frames;
+              const ratio = frames[0].width / frames[0].height;
+              existing.w = existing.h * ratio;
+            } catch (e) {
+              console.warn('failed to upgrade dancer', d.id, e);
+            }
+          }
+        }
+        return;
+      }
       seen.add(d.id);
-      const urls = Array.from({ length: d.frames }, (_, i) => `${d.base}/cutout-${i}.png`);
+      const urls = d.cutout
+        ? Array.from({ length: d.frames }, (_, i) => `${d.base}/cutout-${i}.png`)
+        : Array.from({ length: d.frames }, (_, i) => `${d.base}/placeholder-${i}.png`);
       let frames;
       try {
         frames = await Promise.all(urls.map(loadImg));

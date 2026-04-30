@@ -4,7 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const archiver = require('archiver');
 const crypto = require('crypto');
-const { spawn } = require('child_process');
+const { spawn, spawnSync } = require('child_process');
 const QRCode = require('qrcode');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
@@ -29,12 +29,16 @@ if (!fs.existsSync(dancefloorDir)) {
 // ── Cutout extraction (dance mode) ───────────────────────────────────────────
 const CUTOUT_SCRIPT = path.join(__dirname, 'scripts', 'extract-cutouts.mjs');
 // Keep in sync with FRAME_COUNT in scripts/extract-cutouts.mjs.
-const DANCER_FRAME_COUNT = 8;
+const DANCER_FRAME_COUNT = 6;
+// Placeholder: single mid-video frame shown immediately before cutouts are ready.
+const PLACEHOLDER_FRAME_COUNT = 1;
 
 // Connected dancefloor SSE subscribers.
 const dancefloorClients = new Set();
 // In-flight cutout jobs (ids).
 const processingJobs = new Set();
+// Queued job ids waiting to run (serial queue — max 1 concurrent job).
+const cutoutQueue = [];
 // id -> child process, so an upload deletion can kill its in-flight job.
 const cutoutChildren = new Map();
 
@@ -46,10 +50,51 @@ function broadcast(event, payload) {
 }
 
 function broadcastProcessing() {
-    broadcast('processing', { count: processingJobs.size });
+    broadcast('processing', { count: processingJobs.size + cutoutQueue.length });
 }
 
-function spawnCutoutJob(videoPath, id) {
+// Extract a single mid-video placeholder frame synchronously (fast, <1s).
+// Writes dancefloor/<id>/placeholder-0.png. Returns true on success.
+function extractPlaceholder(videoPath, id) {
+    const outDir = path.join(dancefloorDir, id);
+    if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
+    const out = path.join(outDir, 'placeholder-0.png');
+    if (fs.existsSync(out)) return true;
+    // Use ffmpeg to grab a frame at ~33% into a 30s clip (10s mark); -sseof -20 is safer for webm.
+    const r = spawnSync('ffmpeg', [
+        '-y', '-loglevel', 'error',
+        '-ss', '10',
+        '-i', videoPath,
+        '-frames:v', '1',
+        '-vf', `scale=-2:'min(720,ih)'`,
+        '-q:v', '2',
+        out,
+    ]);
+    if (r.status !== 0) {
+        // Fallback: grab very first frame
+        const r2 = spawnSync('ffmpeg', [
+            '-y', '-loglevel', 'error',
+            '-i', videoPath,
+            '-frames:v', '1',
+            '-vf', `scale=-2:'min(720,ih)'`,
+            '-q:v', '2',
+            out,
+        ]);
+        return r2.status === 0;
+    }
+    return true;
+}
+
+// Run the next queued cutout job, if any, and none are currently running.
+function drainCutoutQueue() {
+    if (cutoutChildren.size > 0) return; // one already running
+    const next = cutoutQueue.shift();
+    if (!next) return;
+    _spawnCutoutJob(next.videoPath, next.id);
+}
+
+// Internal: actually spawn the child process for a cutout job.
+function _spawnCutoutJob(videoPath, id) {
     const outDir = path.join(dancefloorDir, id);
     const child = spawn(process.execPath, [CUTOUT_SCRIPT, videoPath, outDir], {
         cwd: __dirname,
@@ -68,22 +113,47 @@ function spawnCutoutJob(videoPath, id) {
         broadcastProcessing();
         if (code === 0) {
             console.log(`${tag} done`);
+            // Upgrade: broadcast full cutout frames (replaces placeholder on dancefloor).
             broadcast('dancer', {
                 id,
                 frames: DANCER_FRAME_COUNT,
                 base: `/dancefloor-assets/${id}`,
                 mtime: Date.now(),
+                cutout: true,
             });
         } else {
             console.error(`${tag} exited ${code}`);
         }
+        drainCutoutQueue();
     });
     child.on('error', err => {
         console.error(`${tag} spawn error:`, err);
         processingJobs.delete(id);
         cutoutChildren.delete(id);
         broadcastProcessing();
+        drainCutoutQueue();
     });
+}
+
+// Public entry point: queue a cutout job, extract a placeholder immediately,
+// and show the dancer on the dancefloor right away.
+function spawnCutoutJob(videoPath, id) {
+    // Extract a quick placeholder frame synchronously (fast ffmpeg seek).
+    const ok = extractPlaceholder(videoPath, id);
+    if (ok) {
+        broadcast('dancer', {
+            id,
+            frames: PLACEHOLDER_FRAME_COUNT,
+            base: `/dancefloor-assets/${id}`,
+            mtime: Date.now(),
+            cutout: false,
+        });
+    }
+
+    // Enqueue the full cutout job (serial — max 1 at a time).
+    cutoutQueue.push({ videoPath, id });
+    broadcastProcessing();
+    drainCutoutQueue();
 }
 
 // Remove a dancer's cutouts (and cancel its in-flight job, if any) and
@@ -91,6 +161,13 @@ function spawnCutoutJob(videoPath, id) {
 function removeDancer(id) {
     if (!id) return;
     let touched = false;
+    // Remove from queue if it hasn't started yet.
+    const qi = cutoutQueue.findIndex(j => j.id === id);
+    if (qi !== -1) {
+        cutoutQueue.splice(qi, 1);
+        broadcastProcessing();
+        touched = true;
+    }
     const child = cutoutChildren.get(id);
     if (child) {
         try { child.kill('SIGTERM'); } catch (e) {}
@@ -657,17 +734,32 @@ app.get('/api/dancefloor', (req, res) => {
             if (!e.isDirectory()) continue;
             if (e.name.endsWith('.partial')) continue;
             const dir = path.join(dancefloorDir, e.name);
-            const last = path.join(dir, `cutout-${DANCER_FRAME_COUNT - 1}.png`);
-            if (!fs.existsSync(last)) continue; // job still running or failed
-            dancers.push({
-                id: e.name,
-                frames: DANCER_FRAME_COUNT,
-                base: `/dancefloor-assets/${e.name}`,
-                mtime: fs.statSync(last).mtimeMs,
-            });
+            const cutoutLast = path.join(dir, `cutout-${DANCER_FRAME_COUNT - 1}.png`);
+            if (fs.existsSync(cutoutLast)) {
+                // Full cutouts are ready.
+                dancers.push({
+                    id: e.name,
+                    frames: DANCER_FRAME_COUNT,
+                    base: `/dancefloor-assets/${e.name}`,
+                    mtime: fs.statSync(cutoutLast).mtimeMs,
+                    cutout: true,
+                });
+            } else {
+                // Check for a placeholder (single raw frame, shown while cutout job is queued/running).
+                const placeholder = path.join(dir, 'placeholder-0.png');
+                if (fs.existsSync(placeholder)) {
+                    dancers.push({
+                        id: e.name,
+                        frames: PLACEHOLDER_FRAME_COUNT,
+                        base: `/dancefloor-assets/${e.name}`,
+                        mtime: fs.statSync(placeholder).mtimeMs,
+                        cutout: false,
+                    });
+                }
+            }
         }
         dancers.sort((a, b) => b.mtime - a.mtime);
-        res.json({ dancers, processing: processingJobs.size });
+        res.json({ dancers, processing: processingJobs.size + cutoutQueue.length });
     } catch (error) {
         console.error('dancefloor list error:', error);
         res.status(500).json({ success: false, error: 'Failed to list dancers' });
