@@ -28,11 +28,15 @@ if (!fs.existsSync(dancefloorDir)) {
 
 // ── Cutout extraction (dance mode) ───────────────────────────────────────────
 const CUTOUT_SCRIPT = path.join(__dirname, 'scripts', 'extract-cutouts.mjs');
+// Keep in sync with FRAME_COUNT in scripts/extract-cutouts.mjs.
+const DANCER_FRAME_COUNT = 8;
 
 // Connected dancefloor SSE subscribers.
 const dancefloorClients = new Set();
 // In-flight cutout jobs (ids).
 const processingJobs = new Set();
+// id -> child process, so an upload deletion can kill its in-flight job.
+const cutoutChildren = new Map();
 
 function broadcast(event, payload) {
     const line = `event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`;
@@ -53,18 +57,20 @@ function spawnCutoutJob(videoPath, id) {
         detached: false,
     });
     processingJobs.add(id);
+    cutoutChildren.set(id, child);
     broadcastProcessing();
     const tag = `[cutout ${id.slice(0, 8)}]`;
     child.stdout.on('data', d => process.stdout.write(`${tag} ${d}`));
     child.stderr.on('data', d => process.stderr.write(`${tag} ${d}`));
     child.on('exit', code => {
         processingJobs.delete(id);
+        cutoutChildren.delete(id);
         broadcastProcessing();
         if (code === 0) {
             console.log(`${tag} done`);
             broadcast('dancer', {
                 id,
-                frames: 5,
+                frames: DANCER_FRAME_COUNT,
                 base: `/dancefloor-assets/${id}`,
                 mtime: Date.now(),
             });
@@ -75,8 +81,36 @@ function spawnCutoutJob(videoPath, id) {
     child.on('error', err => {
         console.error(`${tag} spawn error:`, err);
         processingJobs.delete(id);
+        cutoutChildren.delete(id);
         broadcastProcessing();
     });
+}
+
+// Remove a dancer's cutouts (and cancel its in-flight job, if any) and
+// notify connected dancefloor pages so the dancer disappears live.
+function removeDancer(id) {
+    if (!id) return;
+    let touched = false;
+    const child = cutoutChildren.get(id);
+    if (child) {
+        try { child.kill('SIGTERM'); } catch (e) {}
+        cutoutChildren.delete(id);
+        processingJobs.delete(id);
+        broadcastProcessing();
+        touched = true;
+    }
+    const dir = path.join(dancefloorDir, id);
+    if (dir.startsWith(dancefloorDir + path.sep) && fs.existsSync(dir)) {
+        try { fs.rmSync(dir, { recursive: true, force: true }); touched = true; } catch (e) {
+            console.warn(`failed to remove cutout dir for ${id}:`, e);
+        }
+    }
+    if (touched) broadcast('remove', { id });
+}
+
+function uploadFilenameToId(filename) {
+    const stem = filename.replace(/\.[^.]+$/, '');
+    return stem.split('__')[0];
 }
 
 // ── Admin password (optional) ────────────────────────────────────────────────
@@ -623,11 +657,11 @@ app.get('/api/dancefloor', (req, res) => {
             if (!e.isDirectory()) continue;
             if (e.name.endsWith('.partial')) continue;
             const dir = path.join(dancefloorDir, e.name);
-            const last = path.join(dir, 'cutout-4.png');
+            const last = path.join(dir, `cutout-${DANCER_FRAME_COUNT - 1}.png`);
             if (!fs.existsSync(last)) continue; // job still running or failed
             dancers.push({
                 id: e.name,
-                frames: 5,
+                frames: DANCER_FRAME_COUNT,
                 base: `/dancefloor-assets/${e.name}`,
                 mtime: fs.statSync(last).mtimeMs,
             });
@@ -648,6 +682,35 @@ app.get('/tjerk-secret-panel', requireAdmin, (req, res) => {
 // Config: read is kiosk-facing (no auth); write is admin-only
 app.get('/api/config', (req, res) => {
     res.json(readConfig());
+});
+
+// Dance tracks: scans public/audio/dance music/ and returns cleaned labels.
+// Filename heuristic: strip leading "NN - " / "NN. " / "N.NN. " number prefixes,
+// strip trailing "(...)" remix tags, replace " - " with " — ".
+const DANCE_MUSIC_DIR = path.join(__dirname, 'public', 'audio', 'dance music');
+function cleanTrackLabel(filename) {
+    let s = filename.replace(/\.[^.]+$/, '');
+    s = s.replace(/^[\d.]+\s*[-.]\s*/, '');
+    s = s.replace(/\s*\([^)]*\)\s*$/, '');
+    s = s.trim();
+    s = s.replace(/\s+-\s+/g, ' — ');
+    return s;
+}
+app.get('/api/dance-tracks', (req, res) => {
+    try {
+        if (!fs.existsSync(DANCE_MUSIC_DIR)) return res.json({ tracks: [] });
+        const files = fs.readdirSync(DANCE_MUSIC_DIR)
+            .filter(f => /\.(mp3|m4a|wav|ogg)$/i.test(f))
+            .sort();
+        const tracks = files.map(f => ({
+            src: `audio/dance music/${f}`,
+            label: cleanTrackLabel(f),
+        }));
+        res.json({ tracks });
+    } catch (e) {
+        console.error('dance-tracks error:', e);
+        res.status(500).json({ tracks: [] });
+    }
 });
 
 app.put('/api/config', adminLimiter, requireAdmin, (req, res) => {
@@ -743,6 +806,7 @@ app.delete('/api/uploads/:filename', adminLimiter, requireAdmin, (req, res) => {
         }
         if (!fs.existsSync(filePath)) return res.status(404).json({ success: false, error: 'Not found' });
         fs.unlinkSync(filePath);
+        removeDancer(uploadFilenameToId(filename));
         res.json({ success: true });
     } catch (e) {
         res.status(500).json({ success: false, error: e.message });
@@ -781,7 +845,11 @@ app.delete('/api/uploads', adminLimiter, requireAdmin, (req, res) => {
         let deleted = 0;
         files.forEach(f => {
             const fp = path.join(uploadsDir, f);
-            if (fs.statSync(fp).isFile()) { fs.unlinkSync(fp); deleted++; }
+            if (fs.statSync(fp).isFile()) {
+                fs.unlinkSync(fp);
+                removeDancer(uploadFilenameToId(f));
+                deleted++;
+            }
         });
         res.json({ success: true, deleted });
     } catch (e) {

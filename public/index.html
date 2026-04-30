@@ -70,6 +70,10 @@
             <img class="disco-ball-img" src="images/disco-ball-png-27263.png" alt="">
         </div>
         <div id="dance-text">DANCE!</div>
+        <div id="dance-track">
+            <div id="dance-track-label">NOW PLAYING</div>
+            <div id="dance-track-title"></div>
+        </div>
         <div id="dance-notes" aria-hidden="true"></div>
     </div>
 
@@ -129,9 +133,8 @@
     <audio id="audio-applause"        src="audio/applause.mp3"                      preload="auto"></audio>
     <audio id="audio-oscar-applause"  src="audio/applause.mp3"                      preload="auto"></audio>
 
-    <!-- Dance music tracks -->
-    <audio id="audio-dance-0" src="audio/dance music/Disco con Tutti.mp3"     preload="auto"></audio>
-    <audio id="audio-dance-1" src="audio/dance music/Who Likes to Party.mp3"  preload="auto"></audio>
+    <!-- Dance music tracks injected at boot from /api/dance-tracks -->
+    <div id="dance-audio-pool" hidden></div>
 
     <!-- Secret panic sounds -->
     <audio id="audio-panic-0" src="audio/stop.mp3"                           preload="auto"></audio>

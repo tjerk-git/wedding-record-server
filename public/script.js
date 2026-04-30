@@ -108,7 +108,11 @@ function cacheEls() {
         els[camelKey] = document.getElementById(id);
     });
     els.stripSlots = [0, 1, 2].map(i => document.getElementById('strip-slot-' + i));
-    els.danceAudio = [0, 1].map(i => document.getElementById('audio-dance-' + i));
+    els.danceAudio = []; // populated dynamically from /api/dance-tracks
+    els.danceTrackLabels = []; // parallel array of human-readable labels
+    els.danceAudioPool = document.getElementById('dance-audio-pool');
+    els.danceTrackTitle = document.getElementById('dance-track-title');
+    els.danceTrack = document.getElementById('dance-track');
     els.panicAudio = [0, 1, 2, 3, 4, 5].map(i => document.getElementById('audio-panic-' + i));
 }
 
@@ -124,6 +128,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         console.warn('[config] load failed; using defaults:', e);
     }
 
+    await loadDanceTracks();
     loadVideoGrid();
 
     // Test mode shortcut: ?test=<mode-id> jumps straight to the locked screen.
@@ -242,12 +247,19 @@ function setVideoGridPlayback(playing) {
 }
 
 function showScreen(name) {
-    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-    if (name === 'IDLE')        els.screenIdle.classList.add('active');
-    else if (name === 'SPIN')   els.screenSpin.classList.add('active');
-    else if (name === 'MODE_LOCKED') els.screenModeLocked.classList.add('active');
-    else if (name === 'QR')     els.screenQr.classList.add('active');
-    else if (name === 'PANIC')  els.screenPanic.classList.add('active');
+    const apply = () => {
+        document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+        if (name === 'IDLE')        els.screenIdle.classList.add('active');
+        else if (name === 'SPIN')   els.screenSpin.classList.add('active');
+        else if (name === 'MODE_LOCKED') els.screenModeLocked.classList.add('active');
+        else if (name === 'QR')     els.screenQr.classList.add('active');
+        else if (name === 'PANIC')  els.screenPanic.classList.add('active');
+    };
+    if (typeof document.startViewTransition === 'function') {
+        document.startViewTransition(apply);
+    } else {
+        apply();
+    }
 }
 
 function clearTimer(key) {
@@ -792,8 +804,17 @@ async function danceMode() {
 
     // Pick a random dance track and start at a random in-track offset so each
     // dance feels different. Need ~18s of runway: 3s countdown + 15s record.
-    const trackIdx = Math.floor(Math.random() * els.danceAudio.length);
+    const trackIdx = Math.floor(Math.random() * Math.max(1, els.danceAudio.length));
     const danceTrack = els.danceAudio[trackIdx];
+    const trackLabel = els.danceTrackLabels[trackIdx] || '';
+    if (els.danceTrackTitle) {
+        els.danceTrackTitle.textContent = trackLabel;
+        els.danceTrack.classList.toggle('visible', !!trackLabel);
+        // Re-trigger entrance animation
+        els.danceTrack.style.animation = 'none';
+        void els.danceTrack.offsetHeight;
+        els.danceTrack.style.animation = '';
+    }
     playDanceTrackFromRandomOffset(danceTrack, DURATIONS.dance + 3);
 
     const noteColors = ['#FF6BB5', '#8126FF', '#FFB800', '#26ccff', '#ffffff'];
@@ -836,6 +857,7 @@ async function danceMode() {
     clearTimer('danceNotes');
     clearTimer('danceCats');
     if (danceTrack) { try { danceTrack.pause(); danceTrack.currentTime = 0; } catch (e) {} }
+    if (els.danceTrack) els.danceTrack.classList.remove('visible');
     els.overlayDance.classList.remove('active');
 
     await uploadVideoAndShowQR(blob, { prompt: 'dance', label: 'Your dance is saved!' });
@@ -1284,6 +1306,30 @@ function playDanceTrackFromRandomOffset(el, neededSeconds) {
         el.addEventListener('loadedmetadata', go);
         try { el.load(); } catch (e) {}
         setTimeout(go, 1500);
+    }
+}
+
+async function loadDanceTracks() {
+    try {
+        const r = await fetch('/api/dance-tracks');
+        if (!r.ok) return;
+        const { tracks } = await r.json();
+        if (!Array.isArray(tracks) || tracks.length === 0) return;
+        els.danceAudioPool.innerHTML = '';
+        els.danceAudio = [];
+        els.danceTrackLabels = [];
+        tracks.forEach((t, i) => {
+            const audio = document.createElement('audio');
+            audio.id = `audio-dance-${i}`;
+            audio.src = t.src;
+            audio.preload = 'auto';
+            els.danceAudioPool.appendChild(audio);
+            els.danceAudio.push(audio);
+            els.danceTrackLabels.push(t.label || '');
+        });
+        console.log(`[dance] loaded ${tracks.length} tracks`);
+    } catch (e) {
+        console.warn('[dance] track load failed:', e);
     }
 }
 

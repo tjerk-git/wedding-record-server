@@ -176,6 +176,22 @@ body {
   display: flex;
 }
 
+/* ── View transitions (Chrome 111+) ───────────────────── */
+::view-transition-old(root) {
+  animation: vt-out 260ms cubic-bezier(0.4, 0, 0.6, 1) both;
+}
+::view-transition-new(root) {
+  animation: vt-in 360ms cubic-bezier(0.22, 1.2, 0.36, 1) both;
+}
+@keyframes vt-out {
+  0%   { opacity: 1; transform: scale(1)     translateY(0); filter: blur(0); }
+  100% { opacity: 0; transform: scale(1.04)  translateY(-2vh); filter: blur(6px); }
+}
+@keyframes vt-in {
+  0%   { opacity: 0; transform: scale(0.94)  translateY(2vh); filter: blur(6px); }
+  100% { opacity: 1; transform: scale(1)     translateY(0); filter: blur(0); }
+}
+
 /* ── IDLE screen ──────────────────────────────────────── */
 
 #screen-idle {
@@ -528,6 +544,58 @@ body {
 @keyframes dance-bounce {
   0%, 100% { transform: translate(-50%, -50%) scale(1) rotate(-2deg); }
   50%       { transform: translate(-50%, -50%) scale(1.06) rotate(2deg); }
+}
+
+#dance-track {
+  position: absolute;
+  top: calc(50% + 7.5rem);
+  left: 50%;
+  transform: translate(-50%, 0);
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  pointer-events: none;
+  z-index: 6;
+}
+#dance-track.visible {
+  display: flex;
+  animation: dance-track-in 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+#dance-track-label {
+  font-size: 0.85rem;
+  font-weight: 800;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.65);
+  padding: 0.35rem 0.9rem;
+  border: 2px solid rgba(255, 255, 255, 0.4);
+  border-radius: 999px;
+  backdrop-filter: blur(8px);
+  background: rgba(0, 0, 0, 0.25);
+}
+#dance-track-title {
+  font-size: clamp(1.6rem, 3.4vw, 2.8rem);
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  text-align: center;
+  max-width: 80vw;
+  line-height: 1.05;
+  background-clip: text; -webkit-background-clip: text;
+  color: transparent;
+  background-image: linear-gradient(45deg,
+    #ff2d95, #ff8a00, #f5d000, #00d97e, #00b3ff, #8126ff, #ff2d95);
+  background-size: 300% 300%;
+  animation: dance-track-hue 4s linear infinite;
+  filter: drop-shadow(0 0 24px rgba(255, 45, 149, 0.45));
+}
+@keyframes dance-track-in {
+  0%   { opacity: 0; transform: translate(-50%, 30px) scale(0.85); }
+  100% { opacity: 1; transform: translate(-50%, 0)    scale(1);    }
+}
+@keyframes dance-track-hue {
+  0%   { background-position: 0% 50%; }
+  100% { background-position: 300% 50%; }
 }
 
 #dance-notes {
