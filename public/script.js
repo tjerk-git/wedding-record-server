@@ -218,10 +218,26 @@ function transitionTo(newState) {
     if (newState === 'IDLE') {
         cleanupEverything();
         showScreen('IDLE');
+        setVideoGridPlayback(true);
         enterDisabled = false;
     } else if (newState === 'SPIN') {
         showScreen('SPIN');
+        setVideoGridPlayback(false);
         startSpin();
+    }
+}
+
+function setVideoGridPlayback(playing) {
+    const grid = document.getElementById('video-grid-background');
+    if (!grid) return;
+    const vids = grid.querySelectorAll('video');
+    for (let i = 0; i < vids.length; i++) {
+        if (playing) {
+            const p = vids[i].play();
+            if (p && p.catch) p.catch(() => {});
+        } else {
+            try { vids[i].pause(); } catch (e) {}
+        }
     }
 }
 
@@ -338,6 +354,9 @@ function stopWheelAndLock() {
     selectorAnim.decel = 0.975;
 }
 
+let selectorGroups = []; // selectorGroups[k] = items at modulo position k across repeats
+let lastSelectedIdx = -1;
+
 function buildSelectorItems() {
     // Build weighted pool: each enabled mode appears `weight` times
     POOL = [];
@@ -348,6 +367,8 @@ function buildSelectorItems() {
 
     const list = els.selectorList;
     list.innerHTML = '';
+    selectorGroups = Array.from({ length: POOL.length }, () => []);
+    const frag = document.createDocumentFragment();
     for (let r = 0; r < SELECTOR_REPEATS; r++) {
         for (let i = 0; i < POOL.length; i++) {
             const m = POOL[i];
@@ -358,9 +379,12 @@ function buildSelectorItems() {
             item.innerHTML =
                 `<span class="selector-num">${String(i + 1).padStart(2, '0')}</span>` +
                 `<span class="selector-name">${m.name}</span>`;
-            list.appendChild(item);
+            frag.appendChild(item);
+            selectorGroups[i].push(item);
         }
     }
+    list.appendChild(frag);
+    lastSelectedIdx = -1;
 }
 
 function drawSelector() {
@@ -370,12 +394,17 @@ function drawSelector() {
 
     const N0 = Math.floor(SELECTOR_REPEATS / 2) * POOL.length;
     const listTop = (SELECTOR_VIEWPORT_HEIGHT / 2 - ITEM_HEIGHT / 2) - (N0 * ITEM_HEIGHT) - o;
-    els.selectorList.style.transform = `translateY(${listTop}px)`;
+    els.selectorList.style.transform = `translate3d(0, ${listTop}px, 0)`;
 
     const idx = ((Math.round(o / ITEM_HEIGHT) % POOL.length) + POOL.length) % POOL.length;
-    const items = els.selectorList.children;
-    for (let i = 0; i < items.length; i++) {
-        items[i].classList.toggle('selected', i % POOL.length === idx);
+    if (idx !== lastSelectedIdx) {
+        if (lastSelectedIdx !== -1) {
+            const prev = selectorGroups[lastSelectedIdx];
+            for (let i = 0; i < prev.length; i++) prev[i].classList.remove('selected');
+        }
+        const cur = selectorGroups[idx];
+        for (let i = 0; i < cur.length; i++) cur[i].classList.add('selected');
+        lastSelectedIdx = idx;
     }
 }
 
@@ -761,10 +790,11 @@ async function danceMode() {
     els.overlayDance.classList.add('active');
     showScreen('ACTION');
 
-    // Pick and play a random dance track
+    // Pick a random dance track and start at a random in-track offset so each
+    // dance feels different. Need ~18s of runway: 3s countdown + 15s record.
     const trackIdx = Math.floor(Math.random() * els.danceAudio.length);
     const danceTrack = els.danceAudio[trackIdx];
-    playAudio(danceTrack);
+    playDanceTrackFromRandomOffset(danceTrack, DURATIONS.dance + 3);
 
     const noteColors = ['#FF6BB5', '#8126FF', '#FFB800', '#26ccff', '#ffffff'];
     timers.danceNotes = {
@@ -824,18 +854,28 @@ async function mirrorMode() {
 
     showScreen('ACTION');
 
-    const distortions = ['stretch-wide', 'stretch-tall', 'wave'];
+    const allDistortions = ['wave', 'kaleidoscope', 'clones', 'pixelate', 'slice-shift', 'psychedelic', 'squish-pulse'];
+    const distortions = allDistortions.slice();
+    for (let i = distortions.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [distortions[i], distortions[j]] = [distortions[j], distortions[i]];
+    }
     let distIdx = 0;
     let distStart = performance.now();
-    const DIST_DURATION = 5000;
+    const DIST_DURATION = 2500;
     let drawing = true;
+
+    const offscreen = document.createElement('canvas');
+    const octx = offscreen.getContext('2d');
 
     function draw() {
         if (!drawing) return;
         const now = performance.now();
+        let justSwitched = false;
         if (now - distStart > DIST_DURATION) {
             distIdx = (distIdx + 1) % distortions.length;
             distStart = now;
+            justSwitched = true;
         }
 
         const cw = canvas.width, ch = canvas.height;
@@ -849,38 +889,116 @@ async function mirrorMode() {
         ctx.fillRect(0, 0, cw, ch);
 
         const dist = distortions[distIdx];
+        const t = (now - distStart) / 1000;
+        const scale = Math.max(cw / vw, ch / vh);
+
         ctx.save();
         ctx.translate(cw, 0);
         ctx.scale(-1, 1);
 
-        if (dist === 'stretch-wide') {
-            const scale = Math.max(cw / vw, ch / vh);
-            const dw = vw * scale * 1.6;
-            const dh = vh * scale * 0.7;
-            ctx.drawImage(videoEl, (cw - dw) / 2, (ch - dh) / 2, dw, dh);
-        } else if (dist === 'stretch-tall') {
-            const scale = Math.max(cw / vw, ch / vh);
-            const dw = vw * scale * 0.7;
-            const dh = vh * scale * 1.6;
-            ctx.drawImage(videoEl, (cw - dw) / 2, (ch - dh) / 2, dw, dh);
-        } else if (dist === 'wave') {
-            const slices = 32;
-            const sliceH = ch / slices;
-            const t = (now - distStart) / 1000;
-            const scale = Math.max(cw / vw, ch / vh);
-            const dw = vw * scale, dh = vh * scale;
-            const dx0 = (cw - dw) / 2, dy0 = (ch - dh) / 2;
-            for (let i = 0; i < slices; i++) {
-                const y = i * sliceH;
-                const offset = Math.sin(i * 0.4 + t * 3) * 50;
-                const sy = Math.max(0, (y - dy0) * (vh / dh));
-                const ssh = Math.min(vh - sy, sliceH * (vh / dh));
-                if (ssh > 0) {
-                    ctx.drawImage(videoEl, 0, sy, vw, ssh, dx0 + offset, y, dw, sliceH);
+        switch (dist) {
+            case 'wave': {
+                const slices = 40;
+                const sliceH = ch / slices;
+                const dw = vw * scale, dh = vh * scale;
+                const dx0 = (cw - dw) / 2, dy0 = (ch - dh) / 2;
+                for (let i = 0; i < slices; i++) {
+                    const y = i * sliceH;
+                    const offset = Math.sin(i * 0.5 + t * 4) * 90 + Math.sin(t * 1.7) * 30;
+                    const sy = Math.max(0, (y - dy0) * (vh / dh));
+                    const ssh = Math.min(vh - sy, sliceH * (vh / dh));
+                    if (ssh > 0) ctx.drawImage(videoEl, 0, sy, vw, ssh, dx0 + offset, y, dw, sliceH);
                 }
+                break;
+            }
+            case 'kaleidoscope': {
+                const segments = 6;
+                const segW = cw / segments;
+                const dh = ch * 1.1;
+                const dw = vw * (dh / vh);
+                for (let i = 0; i < segments; i++) {
+                    ctx.save();
+                    ctx.translate(i * segW + segW / 2, ch / 2);
+                    ctx.scale(i % 2 === 0 ? 1 : -1, 1);
+                    ctx.rotate(Math.sin(t * 1.5 + i) * 0.08);
+                    ctx.drawImage(videoEl, -dw / 2, -dh / 2, dw, dh);
+                    ctx.restore();
+                }
+                break;
+            }
+            case 'clones': {
+                const dw = vw * scale, dh = vh * scale;
+                const layers = [
+                    { sx: 1.0, ox: 0.5, oy: 0.55, alpha: 1.0 },
+                    { sx: 0.55, ox: 0.22 + Math.sin(t * 1.3) * 0.04, oy: 0.32, alpha: 0.7 },
+                    { sx: 0.55, ox: 0.78 - Math.sin(t * 1.3) * 0.04, oy: 0.32, alpha: 0.7 },
+                    { sx: 0.4, ox: 0.5, oy: 0.85, alpha: 0.55 }
+                ];
+                for (const p of layers) {
+                    const w = dw * p.sx, h = dh * p.sx;
+                    ctx.globalAlpha = p.alpha;
+                    ctx.drawImage(videoEl, cw * p.ox - w / 2, ch * p.oy - h / 2, w, h);
+                }
+                ctx.globalAlpha = 1;
+                break;
+            }
+            case 'pixelate': {
+                const block = 14 + Math.round(Math.sin(t * 2) * 6);
+                const tw = Math.max(2, Math.ceil(cw / block));
+                const th = Math.max(2, Math.ceil(ch / block));
+                if (offscreen.width !== tw || offscreen.height !== th) {
+                    offscreen.width = tw;
+                    offscreen.height = th;
+                }
+                octx.drawImage(videoEl, 0, 0, tw, th);
+                ctx.imageSmoothingEnabled = false;
+                ctx.drawImage(offscreen, 0, 0, cw, ch);
+                ctx.imageSmoothingEnabled = true;
+                break;
+            }
+            case 'slice-shift': {
+                const slices = 14;
+                const sliceH = ch / slices;
+                const dw = vw * scale, dh = vh * scale;
+                const dx0 = (cw - dw) / 2, dy0 = (ch - dh) / 2;
+                for (let i = 0; i < slices; i++) {
+                    const y = i * sliceH;
+                    const r = Math.sin(i * 12.9898 + Math.floor(t * 6) * 78.233) * 43758.5453;
+                    const jitter = (r - Math.floor(r) - 0.5);
+                    const offset = jitter * 220;
+                    const sy = Math.max(0, (y - dy0) * (vh / dh));
+                    const ssh = Math.min(vh - sy, sliceH * (vh / dh));
+                    if (ssh > 0) ctx.drawImage(videoEl, 0, sy, vw, ssh, dx0 + offset, y, dw, sliceH);
+                }
+                break;
+            }
+            case 'psychedelic': {
+                const dw = vw * scale * (1 + Math.sin(t * 3) * 0.08);
+                const dh = vh * scale * (1 + Math.cos(t * 2.4) * 0.08);
+                ctx.filter = `hue-rotate(${(t * 140) % 360}deg) saturate(2.4) contrast(1.15)`;
+                ctx.drawImage(videoEl, (cw - dw) / 2, (ch - dh) / 2, dw, dh);
+                ctx.filter = 'none';
+                break;
+            }
+            case 'squish-pulse': {
+                const pulse = Math.sin(t * 3.2) * 0.45;
+                const dw = vw * scale * (1 + pulse);
+                const dh = vh * scale * (1 - pulse * 0.85);
+                ctx.drawImage(videoEl, (cw - dw) / 2, (ch - dh) / 2, dw, dh);
+                break;
             }
         }
         ctx.restore();
+
+        // Brief flash on transition
+        if (justSwitched || now - distStart < 140) {
+            const flashAlpha = Math.max(0, 1 - (now - distStart) / 140);
+            if (flashAlpha > 0) {
+                ctx.fillStyle = `rgba(255, 255, 255, ${flashAlpha * 0.85})`;
+                ctx.fillRect(0, 0, cw, ch);
+            }
+        }
+
         requestAnimationFrame(draw);
     }
     draw();
@@ -1139,6 +1257,36 @@ function playAudio(el) {
     } catch (e) {}
 }
 
+function playDanceTrackFromRandomOffset(el, neededSeconds) {
+    if (!el) return;
+    const start = () => {
+        const dur = el.duration;
+        if (Number.isFinite(dur) && dur > neededSeconds + 0.5) {
+            el.currentTime = Math.random() * (dur - neededSeconds);
+        } else {
+            el.currentTime = 0;
+        }
+        try {
+            const p = el.play();
+            if (p && p.catch) p.catch(e => console.warn('audio play failed:', e));
+        } catch (e) {}
+    };
+    if (Number.isFinite(el.duration)) {
+        start();
+    } else {
+        let started = false;
+        const go = () => {
+            if (started) return;
+            started = true;
+            el.removeEventListener('loadedmetadata', go);
+            start();
+        };
+        el.addEventListener('loadedmetadata', go);
+        try { el.load(); } catch (e) {}
+        setTimeout(go, 1500);
+    }
+}
+
 function loadVideoGrid() {
     fetch('/api/videos')
         .then(r => r.json())
@@ -1167,9 +1315,6 @@ function loadVideoGrid() {
                     v.preload = 'metadata';
                     v.style.transform = 'scale(0.8)';
                     v.style.clipPath = clipPaths[i % clipPaths.length];
-                    v.addEventListener('timeupdate', () => {
-                        if (v.currentTime >= 10) v.currentTime = 0;
-                    });
                     item.appendChild(v);
                 }
                 grid.appendChild(item);

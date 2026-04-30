@@ -245,6 +245,8 @@ body {
   right: 0;
   top: 0;
   will-change: transform;
+  transform: translateZ(0);
+  backface-visibility: hidden;
 }
 
 .selector-item {
@@ -260,7 +262,6 @@ body {
   text-transform: uppercase;
   box-sizing: border-box;
   user-select: none;
-  transition: transform 180ms ease;
 }
 
 .selector-num {
@@ -283,7 +284,7 @@ body {
 
 .selector-item.selected {
   transform: scale(1.04);
-  box-shadow: inset 0 0 0 4px rgba(255, 255, 255, 0.55), 0 0 60px rgba(255, 255, 255, 0.15);
+  box-shadow: inset 0 0 0 4px rgba(255, 255, 255, 0.55), 0 0 16px rgba(255, 255, 255, 0.18);
 }
 
 #selector-marker-top,
