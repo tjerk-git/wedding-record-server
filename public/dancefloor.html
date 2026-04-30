@@ -19,6 +19,7 @@
       letter-spacing: -0.04em;
       line-height: 0.85;
       text-align: center;
+      padding: 0 4vw;
       background-clip: text; -webkit-background-clip: text;
       color: transparent;
       background-image: linear-gradient(45deg,
@@ -28,6 +29,11 @@
       filter: drop-shadow(0 0 30px rgba(255, 45, 149, 0.35));
       opacity: 0.45;
     }
+    #dance-bg.warming {
+      font-size: clamp(3rem, 9vw, 9rem);
+      animation: hue 6s linear infinite, blink 0.9s steps(2, end) infinite;
+      filter: drop-shadow(0 0 24px rgba(176, 116, 255, 0.6));
+    }
     @keyframes hue {
       0%   { background-position: 0% 50%; }
       100% { background-position: 300% 50%; }
@@ -35,6 +41,10 @@
     @keyframes pulse {
       0%, 100% { transform: scale(1); }
       50%      { transform: scale(1.06); }
+    }
+    @keyframes blink {
+      0%, 49%   { opacity: 0.85; }
+      50%, 100% { opacity: 0.18; }
     }
 
     /* Disco balls hanging from the top */
@@ -122,6 +132,28 @@
     const ctx = canvas.getContext('2d');
     const empty = document.getElementById('empty');
     const countEl = document.getElementById('count');
+    const danceBg = document.getElementById('dance-bg');
+    let processingCount = 0;
+
+    function updateProcessing(n) {
+      processingCount = Math.max(0, n | 0);
+      if (processingCount > 0) {
+        const word = processingCount === 1 ? 'DANCER' : 'DANCERS';
+        danceBg.textContent = `${processingCount} ${word} WARMING UP…`;
+        danceBg.classList.add('warming');
+      } else {
+        danceBg.textContent = 'DANCE';
+        danceBg.classList.remove('warming');
+      }
+      updateEmptyText();
+    }
+
+    function updateEmptyText() {
+      if (dancers.length > 0) return;
+      empty.textContent = processingCount > 0
+        ? 'warming up the first dancer…'
+        : 'waiting for the first dance…';
+    }
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     function resize() {
       canvas.width = innerWidth * dpr;
@@ -182,8 +214,10 @@
       try {
         const r = await fetch('/api/dancefloor', { cache: 'no-store' });
         if (!r.ok) return;
-        const { dancers: list } = await r.json();
+        const data = await r.json();
+        const list = data.dancers || [];
         for (const d of list) await addDancer(d);
+        updateProcessing(data.processing || 0);
       } catch (e) {
         console.warn('refresh failed', e);
       }
@@ -246,6 +280,14 @@
         addDancer(d);
       } catch (err) {
         console.warn('bad dancer event', err);
+      }
+    });
+    es.addEventListener('processing', e => {
+      try {
+        const { count } = JSON.parse(e.data);
+        updateProcessing(count);
+      } catch (err) {
+        console.warn('bad processing event', err);
       }
     });
     es.addEventListener('error', () => { /* EventSource auto-reconnects */ });

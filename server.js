@@ -31,12 +31,18 @@ const CUTOUT_SCRIPT = path.join(__dirname, 'scripts', 'extract-cutouts.mjs');
 
 // Connected dancefloor SSE subscribers.
 const dancefloorClients = new Set();
+// In-flight cutout jobs (ids).
+const processingJobs = new Set();
 
-function broadcastDancer(payload) {
-    const line = `event: dancer\ndata: ${JSON.stringify(payload)}\n\n`;
+function broadcast(event, payload) {
+    const line = `event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`;
     for (const res of dancefloorClients) {
         try { res.write(line); } catch { dancefloorClients.delete(res); }
     }
+}
+
+function broadcastProcessing() {
+    broadcast('processing', { count: processingJobs.size });
 }
 
 function spawnCutoutJob(videoPath, id) {
@@ -46,13 +52,17 @@ function spawnCutoutJob(videoPath, id) {
         stdio: ['ignore', 'pipe', 'pipe'],
         detached: false,
     });
+    processingJobs.add(id);
+    broadcastProcessing();
     const tag = `[cutout ${id.slice(0, 8)}]`;
     child.stdout.on('data', d => process.stdout.write(`${tag} ${d}`));
     child.stderr.on('data', d => process.stderr.write(`${tag} ${d}`));
     child.on('exit', code => {
+        processingJobs.delete(id);
+        broadcastProcessing();
         if (code === 0) {
             console.log(`${tag} done`);
-            broadcastDancer({
+            broadcast('dancer', {
                 id,
                 frames: 5,
                 base: `/dancefloor-assets/${id}`,
@@ -62,7 +72,11 @@ function spawnCutoutJob(videoPath, id) {
             console.error(`${tag} exited ${code}`);
         }
     });
-    child.on('error', err => console.error(`${tag} spawn error:`, err));
+    child.on('error', err => {
+        console.error(`${tag} spawn error:`, err);
+        processingJobs.delete(id);
+        broadcastProcessing();
+    });
 }
 
 // ── Admin password (optional) ────────────────────────────────────────────────
@@ -619,7 +633,7 @@ app.get('/api/dancefloor', (req, res) => {
             });
         }
         dancers.sort((a, b) => b.mtime - a.mtime);
-        res.json({ dancers });
+        res.json({ dancers, processing: processingJobs.size });
     } catch (error) {
         console.error('dancefloor list error:', error);
         res.status(500).json({ success: false, error: 'Failed to list dancers' });
