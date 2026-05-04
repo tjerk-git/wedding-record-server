@@ -17,6 +17,7 @@ const BASE_URL = process.env.BASE_URL || `http://localhost:${PORT}`;
 const DATA_DIR = process.env.DATA_DIR || __dirname;
 const uploadsDir = path.join(DATA_DIR, 'uploads');
 const dancefloorDir = path.join(DATA_DIR, 'dancefloor');
+const videoThumbsDir = path.join(DATA_DIR, 'video-thumbs');
 const CONFIG_PATH = path.join(DATA_DIR, 'config.json');
 
 if (!fs.existsSync(uploadsDir)) {
@@ -24,6 +25,9 @@ if (!fs.existsSync(uploadsDir)) {
 }
 if (!fs.existsSync(dancefloorDir)) {
     fs.mkdirSync(dancefloorDir, { recursive: true });
+}
+if (!fs.existsSync(videoThumbsDir)) {
+    fs.mkdirSync(videoThumbsDir, { recursive: true });
 }
 
 // ── Cutout extraction (dance mode) ───────────────────────────────────────────
@@ -35,6 +39,8 @@ const PLACEHOLDER_FRAME_COUNT = 1;
 
 // Connected dancefloor SSE subscribers.
 const dancefloorClients = new Set();
+// Connected kiosk SSE subscribers (receive control events like config reload).
+const kioskClients = new Set();
 // In-flight cutout jobs (ids).
 const processingJobs = new Set();
 // Queued job ids waiting to run (serial queue — max 1 concurrent job).
@@ -46,6 +52,13 @@ function broadcast(event, payload) {
     const line = `event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`;
     for (const res of dancefloorClients) {
         try { res.write(line); } catch { dancefloorClients.delete(res); }
+    }
+}
+
+function broadcastKiosk(event, payload) {
+    const line = `event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`;
+    for (const res of kioskClients) {
+        try { res.write(line); } catch { kioskClients.delete(res); }
     }
 }
 
@@ -83,6 +96,48 @@ function extractPlaceholder(videoPath, id) {
         return r2.status === 0;
     }
     return true;
+}
+
+// Async single-frame thumbnail for the home-page video grid. Cached per filename.
+// Multiple concurrent requests for the same file share a single ffmpeg run.
+const pendingThumbs = new Map();
+function ensureVideoThumb(videoPath, thumbPath) {
+    if (fs.existsSync(thumbPath)) return Promise.resolve(true);
+    if (pendingThumbs.has(thumbPath)) return pendingThumbs.get(thumbPath);
+
+    const job = new Promise((resolve) => {
+        const tryRun = (args, onDone) => {
+            const child = spawn('ffmpeg', args);
+            child.on('error', () => onDone(false));
+            child.on('close', (code) => onDone(code === 0));
+        };
+        const baseArgs = [
+            '-y', '-loglevel', 'error',
+            '-ss', '1',
+            '-i', videoPath,
+            '-frames:v', '1',
+            '-vf', `scale=-2:'min(540,ih)'`,
+            '-q:v', '4',
+            thumbPath,
+        ];
+        tryRun(baseArgs, (ok) => {
+            if (ok) return resolve(true);
+            // Fallback: very first frame, no seek.
+            const fallback = [
+                '-y', '-loglevel', 'error',
+                '-i', videoPath,
+                '-frames:v', '1',
+                '-vf', `scale=-2:'min(540,ih)'`,
+                '-q:v', '4',
+                thumbPath,
+            ];
+            tryRun(fallback, resolve);
+        });
+    }).finally(() => {
+        pendingThumbs.delete(thumbPath);
+    });
+    pendingThumbs.set(thumbPath, job);
+    return job;
 }
 
 // Run the next queued cutout job, if any, and none are currently running.
@@ -651,6 +706,30 @@ app.get('/api/video/:filename', (req, res) => {
     }
 });
 
+// Single-frame poster for the home-page video grid. Generated on demand, cached on disk.
+app.get('/api/video-thumb/:filename', async (req, res) => {
+    const filename = req.params.filename;
+    if (!filename || filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
+        return res.status(400).json({ error: 'Invalid filename' });
+    }
+    const videoPath = path.join(uploadsDir, filename);
+    if (!videoPath.startsWith(uploadsDir + path.sep) || !fs.existsSync(videoPath)) {
+        return res.status(404).json({ error: 'Not found' });
+    }
+    const thumbPath = path.join(videoThumbsDir, filename.replace(/\.[^.]+$/, '') + '.jpg');
+    try {
+        const ok = await ensureVideoThumb(videoPath, thumbPath);
+        if (!ok || !fs.existsSync(thumbPath)) {
+            return res.status(500).json({ error: 'Thumbnail generation failed' });
+        }
+        res.set('Cache-Control', 'public, max-age=86400');
+        res.sendFile(thumbPath);
+    } catch (e) {
+        console.error('video-thumb error:', e);
+        res.status(500).json({ error: e.message });
+    }
+});
+
 app.get('/api/images', (req, res) => {
     try {
         const files = fs.readdirSync(uploadsDir);
@@ -776,6 +855,28 @@ app.get('/api/config', (req, res) => {
     res.json(readConfig());
 });
 
+// Kiosk SSE channel: server pushes control events (e.g. reload) to all running kiosks.
+app.get('/api/kiosk/stream', (req, res) => {
+    res.set({
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache, no-transform',
+        'Connection': 'keep-alive',
+        'X-Accel-Buffering': 'no',
+    });
+    res.flushHeaders();
+    res.write(': connected\n\n');
+    kioskClients.add(res);
+
+    const keepalive = setInterval(() => {
+        try { res.write(': keepalive\n\n'); } catch {}
+    }, 15000);
+
+    req.on('close', () => {
+        clearInterval(keepalive);
+        kioskClients.delete(res);
+    });
+});
+
 // Dance tracks: scans public/audio/dance music/ and returns cleaned labels.
 // Filename heuristic: strip leading "NN - " / "NN. " / "N.NN. " number prefixes,
 // strip trailing "(...)" remix tags, replace " - " with " — ".
@@ -835,6 +936,7 @@ app.put('/api/config', adminLimiter, requireAdmin, (req, res) => {
         if ('stripBrandText' in merged)   merged.stripBrandText   = String(merged.stripBrandText).slice(0, 80);
 
         writeConfig(merged);
+        broadcastKiosk('reload', { reason: 'config' });
         res.json({ success: true, config: merged });
     } catch (e) {
         console.error('config write failed:', e);
@@ -898,6 +1000,8 @@ app.delete('/api/uploads/:filename', adminLimiter, requireAdmin, (req, res) => {
         }
         if (!fs.existsSync(filePath)) return res.status(404).json({ success: false, error: 'Not found' });
         fs.unlinkSync(filePath);
+        const thumbPath = path.join(videoThumbsDir, filename.replace(/\.[^.]+$/, '') + '.jpg');
+        if (fs.existsSync(thumbPath)) { try { fs.unlinkSync(thumbPath); } catch {} }
         removeDancer(uploadFilenameToId(filename));
         res.json({ success: true });
     } catch (e) {
@@ -939,6 +1043,8 @@ app.delete('/api/uploads', adminLimiter, requireAdmin, (req, res) => {
             const fp = path.join(uploadsDir, f);
             if (fs.statSync(fp).isFile()) {
                 fs.unlinkSync(fp);
+                const thumbPath = path.join(videoThumbsDir, f.replace(/\.[^.]+$/, '') + '.jpg');
+                if (fs.existsSync(thumbPath)) { try { fs.unlinkSync(thumbPath); } catch {} }
                 removeDancer(uploadFilenameToId(f));
                 deleted++;
             }

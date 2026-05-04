@@ -104,11 +104,11 @@ body {
   overflow: hidden;
 }
 
-.video-grid-item video {
+.video-grid-item img {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  opacity: 0.5;
+  opacity: 0.7;
 }
 
 #bg-shape {
@@ -937,9 +937,22 @@ body {
 #screen-panic {
   background: #0a0010;
   z-index: 100;
+  overflow: hidden;
+}
+
+#screen-panic::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: #fff;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 1;
 }
 
 #panic-message {
+  position: relative;
+  z-index: 2;
   font-size: clamp(3rem, 8vw, 7rem);
   font-weight: 900;
   letter-spacing: -0.04em;
@@ -960,9 +973,74 @@ body {
   text-shadow: none;
   opacity: 0.8;
 }
+
+#panic-message.panic-armed {
+  color: #ffaa00;
+  animation: panic-shake-violent 0.07s ease-in-out infinite,
+             panic-armed-pulse 0.45s ease-in-out infinite;
+  text-shadow:
+    0 0 50px rgba(255, 100, 0, 0.95),
+    0 0 140px rgba(255, 0, 0, 0.75);
+}
+
+#panic-message.panic-detonate {
+  animation: panic-blast 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) forwards;
+}
+
+#screen-panic.detonating {
+  animation: panic-bigshake 0.6s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+}
+
+#screen-panic.detonating::before {
+  animation: panic-flash 1.6s ease-out forwards;
+}
+
+@keyframes panic-shake {
   0%   { transform: translate(0, 0) rotate(0deg); }
   25%  { transform: translate(-4px, 2px) rotate(-1deg); }
   50%  { transform: translate(4px, -2px) rotate(1deg); }
   75%  { transform: translate(-2px, -3px) rotate(-0.5deg); }
   100% { transform: translate(2px, 1px) rotate(0.5deg); }
+}
+
+@keyframes panic-shake-violent {
+  0%   { transform: translate(0, 0) rotate(0deg); }
+  20%  { transform: translate(-12px, 6px) rotate(-2deg); }
+  40%  { transform: translate(12px, -6px) rotate(2deg); }
+  60%  { transform: translate(-8px, -10px) rotate(-1.5deg); }
+  80%  { transform: translate(8px, 4px) rotate(1.5deg); }
+  100% { transform: translate(-4px, 8px) rotate(-1deg); }
+}
+
+@keyframes panic-armed-pulse {
+  0%, 100% { filter: brightness(1); }
+  50%      { filter: brightness(1.6); }
+}
+
+@keyframes panic-blast {
+  0%   { transform: scale(1);   opacity: 1; filter: brightness(1); }
+  20%  { transform: scale(2.4); opacity: 1; filter: brightness(3) blur(1px); }
+  60%  { transform: scale(6);   opacity: 0.4; filter: brightness(2) blur(8px); }
+  100% { transform: scale(9);   opacity: 0; filter: blur(24px); }
+}
+
+@keyframes panic-flash {
+  0%   { opacity: 0; background: #fff; }
+  4%   { opacity: 1; background: #fff; }
+  25%  { opacity: 1; background: #ffd400; }
+  60%  { opacity: 0.55; background: #ff5500; }
+  100% { opacity: 0; background: #000; }
+}
+
+@keyframes panic-bigshake {
+  0%, 100% { transform: translate(0, 0); }
+  10%  { transform: translate(-32px, 18px); }
+  20%  { transform: translate(28px, -16px); }
+  30%  { transform: translate(-26px, -20px); }
+  40%  { transform: translate(24px, 14px); }
+  50%  { transform: translate(-20px, 18px); }
+  60%  { transform: translate(16px, -14px); }
+  70%  { transform: translate(-12px, 10px); }
+  80%  { transform: translate(10px, -8px); }
+  90%  { transform: translate(-6px, 4px); }
 }

@@ -130,6 +130,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     await loadDanceTracks();
     loadVideoGrid();
+    connectKioskStream();
 
     // Test mode shortcut: ?test=<mode-id> jumps straight to the locked screen.
     const params = new URLSearchParams(location.search);
@@ -223,26 +224,28 @@ function transitionTo(newState) {
     if (newState === 'IDLE') {
         cleanupEverything();
         showScreen('IDLE');
-        setVideoGridPlayback(true);
         enterDisabled = false;
+        if (reloadPending) location.reload();
     } else if (newState === 'SPIN') {
         showScreen('SPIN');
-        setVideoGridPlayback(false);
         startSpin();
     }
 }
 
-function setVideoGridPlayback(playing) {
-    const grid = document.getElementById('video-grid-background');
-    if (!grid) return;
-    const vids = grid.querySelectorAll('video');
-    for (let i = 0; i < vids.length; i++) {
-        if (playing) {
-            const p = vids[i].play();
-            if (p && p.catch) p.catch(() => {});
-        } else {
-            try { vids[i].pause(); } catch (e) {}
-        }
+// ── Server-pushed control events (admin saving settings → reload) ─────
+let reloadPending = false;
+function connectKioskStream() {
+    try {
+        const es = new EventSource('/api/kiosk/stream');
+        es.addEventListener('reload', () => {
+            // Reload immediately if the kiosk is at rest; otherwise wait until
+            // we return to IDLE so we don't interrupt a capture in progress.
+            if (state === 'IDLE') location.reload();
+            else reloadPending = true;
+        });
+        // EventSource auto-reconnects on its own; no manual handling needed.
+    } catch (e) {
+        console.warn('[kiosk-stream] init failed:', e);
     }
 }
 
@@ -300,6 +303,9 @@ function cleanupEverything() {
     });
 
     els.stripSlots.forEach(s => { s.innerHTML = ''; s.classList.remove('filled'); });
+
+    if (els.screenPanic) els.screenPanic.classList.remove('detonating');
+    if (els.panicMessage) els.panicMessage.classList.remove('panic-armed', 'panic-detonate');
 
     activeMode = null;
 }
@@ -478,20 +484,25 @@ const PANIC_THRESHOLDS = [1, 3, 6, 10, 14, 19];
 let panicClickCount   = 0;
 let panicCurrentLevel = -1;
 let panicExitReady    = false;
+let selfDestructArmed = false;
 
 function enterPanic() {
     state           = 'PANIC';
     panicClickCount = 0;
     panicCurrentLevel = -1;
     panicExitReady  = false;
+    selfDestructArmed = false;
     enterDisabled   = false;
     cleanupEverything();
     showScreen('PANIC');
-    if (els.panicMessage) els.panicMessage.classList.remove('panic-exit');
+    if (els.panicMessage) els.panicMessage.classList.remove('panic-exit', 'panic-armed', 'panic-detonate');
+    if (els.screenPanic) els.screenPanic.classList.remove('detonating');
     advancePanic();
 }
 
 function advancePanic() {
+    if (selfDestructArmed) return; // detonation in progress — ignore presses
+
     panicClickCount++;
     clearTimer('panicIdle');
 
@@ -510,6 +521,12 @@ function advancePanic() {
     }
     playAudio(els.panicAudio[level]);
 
+    // Final level: arm the self-destruct sequence — no exit prompt, no more presses
+    if (level === PANIC_MESSAGES.length - 1) {
+        armSelfDestruct();
+        return;
+    }
+
     // Start inactivity timer — if no press for 4s, show exit prompt
     timers.panicIdle = {
         kind: 'timeout',
@@ -517,6 +534,56 @@ function advancePanic() {
             delete timers.panicIdle;
             showPanicExitPrompt();
         }, 4000)
+    };
+}
+
+function armSelfDestruct() {
+    selfDestructArmed = true;
+    if (els.panicMessage) els.panicMessage.classList.add('panic-armed');
+
+    // self-destruct.mp3 is ~7.1s of "5..4..3..2..1" — detonate just before it ends
+    timers.panicDetonate = {
+        kind: 'timeout',
+        id: setTimeout(() => {
+            delete timers.panicDetonate;
+            detonate();
+        }, 6800)
+    };
+}
+
+function detonate() {
+    if (els.screenPanic) els.screenPanic.classList.add('detonating');
+    if (els.panicMessage) {
+        els.panicMessage.classList.remove('panic-armed');
+        els.panicMessage.classList.add('panic-detonate');
+    }
+
+    if (typeof confetti === 'function') {
+        const colors = ['#ff2244', '#ff7a00', '#ffd400', '#ffffff'];
+        // Big central blast
+        confetti({ particleCount: 280, spread: 360, startVelocity: 80, ticks: 240, scalar: 1.6, origin: { x: 0.5, y: 0.5 }, colors });
+        // Side bursts angled outward, like shrapnel
+        confetti({ particleCount: 140, spread: 90, angle: 60,  startVelocity: 90, origin: { x: 0, y: 0.65 }, colors });
+        confetti({ particleCount: 140, spread: 90, angle: 120, startVelocity: 90, origin: { x: 1, y: 0.65 }, colors });
+        // Lingering debris a beat later
+        timers.panicDebris = {
+            kind: 'timeout',
+            id: setTimeout(() => {
+                delete timers.panicDebris;
+                if (typeof confetti === 'function') {
+                    confetti({ particleCount: 200, spread: 360, startVelocity: 35, ticks: 320, gravity: 1.3, scalar: 1.2, origin: { x: 0.5, y: 0.45 }, colors });
+                }
+            }, 280)
+        };
+    }
+
+    // Auto-return to idle once the smoke clears
+    timers.panicReset = {
+        kind: 'timeout',
+        id: setTimeout(() => {
+            delete timers.panicReset;
+            transitionTo('IDLE');
+        }, 3500)
     };
 }
 
@@ -1353,15 +1420,14 @@ function loadVideoGrid() {
                 const item = document.createElement('div');
                 item.className = 'video-grid-item';
                 if (recent[i]) {
-                    const v = document.createElement('video');
-                    v.src = `/uploads/${recent[i]}`;
-                    v.muted = true;
-                    v.autoplay = true;
-                    v.loop = true;
-                    v.preload = 'metadata';
-                    v.style.transform = 'scale(0.8)';
-                    v.style.clipPath = clipPaths[i % clipPaths.length];
-                    item.appendChild(v);
+                    const img = document.createElement('img');
+                    img.src = `/api/video-thumb/${encodeURIComponent(recent[i])}`;
+                    img.loading = 'lazy';
+                    img.decoding = 'async';
+                    img.alt = '';
+                    img.style.transform = 'scale(0.8)';
+                    img.style.clipPath = clipPaths[i % clipPaths.length];
+                    item.appendChild(img);
                 }
                 grid.appendChild(item);
             }
