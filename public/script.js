@@ -101,6 +101,7 @@ function cacheEls() {
         'qr-loading', 'qr-image', 'qr-url', 'qr-label', 'qr-countdown',
         'record-timer', 'progress-bar', 'progress-bar-container',
         'audio-shutter', 'audio-applause', 'audio-oscar-applause', 'audio-spinner',
+        'audio-explosion',
         'panic-message'
     ];
     ids.forEach(id => {
@@ -557,6 +558,8 @@ function detonate() {
         els.panicMessage.classList.remove('panic-armed');
         els.panicMessage.classList.add('panic-detonate');
     }
+
+    playAudio(els.audioExplosion);
 
     if (typeof confetti === 'function') {
         const colors = ['#ff2244', '#ff7a00', '#ffd400', '#ffffff'];
