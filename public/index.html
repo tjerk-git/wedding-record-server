@@ -118,33 +118,11 @@
     </div>
     <div id="record-timer"></div>
 
-    <!-- Mode announcement sounds (played when a mode locks in) -->
-    <audio id="audio-announce-photobooth" src="audio/photobooth.mp3"     preload="auto"></audio>
-    <audio id="audio-announce-dance"      src="audio/dance.mp3"           preload="auto"></audio>
-    <audio id="audio-announce-confession" src="audio/confession.mp3"      preload="auto"></audio>
-    <audio id="audio-announce-mirror"     src="audio/funhouse-mirror.mp3" preload="auto"></audio>
-    <audio id="audio-announce-oscar"      src="audio/oscar.mp3"           preload="auto"></audio>
-
-    <!-- Selector spin -->
-    <audio id="audio-spinner" src="audio/spinner.mp3" preload="auto" loop></audio>
-
-    <!-- Effects -->
-    <audio id="audio-shutter"         src="audio/shutter.mp3"   preload="auto"></audio>
-    <audio id="audio-applause"        src="audio/applause.mp3"                      preload="auto"></audio>
-    <audio id="audio-oscar-applause"  src="audio/applause.mp3"                      preload="auto"></audio>
-
-    <!-- Dance music tracks injected at boot from /api/dance-tracks -->
+    <!-- Dance music tracks injected at boot from /api/dance-tracks
+         (long-form streaming audio stays on HTMLAudioElement; SFX go through Howler) -->
     <div id="dance-audio-pool" hidden></div>
 
-    <!-- Secret panic sounds -->
-    <audio id="audio-panic-0" src="audio/stop.mp3"                           preload="auto"></audio>
-    <audio id="audio-panic-1" src="audio/don't.mp3"                          preload="auto"></audio>
-    <audio id="audio-panic-2" src="audio/please-stop-pressing-the-button.mp3" preload="auto"></audio>
-    <audio id="audio-panic-3" src="audio/why-are-you-doing-this.mp3"         preload="auto"></audio>
-    <audio id="audio-panic-4" src="audio/i'm-calling-my-mom.mp3"             preload="auto"></audio>
-    <audio id="audio-panic-5" src="audio/self-destruct.mp3"                  preload="auto"></audio>
-    <audio id="audio-explosion" src="audio/creeper-explosion.mp3"            preload="auto"></audio>
-
+    <script src="howler.min.js"></script>
     <script src="confetti.js"></script>
     <script src="script.js"></script>
 </body>

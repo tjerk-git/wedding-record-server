@@ -100,8 +100,6 @@ function cacheEls() {
         'overlay-photobooth', 'photo-instruction', 'photo-countdown-display',
         'qr-loading', 'qr-image', 'qr-url', 'qr-label', 'qr-countdown',
         'record-timer', 'progress-bar', 'progress-bar-container',
-        'audio-shutter', 'audio-applause', 'audio-oscar-applause', 'audio-spinner',
-        'audio-explosion',
         'panic-message'
     ];
     ids.forEach(id => {
@@ -114,12 +112,59 @@ function cacheEls() {
     els.danceAudioPool = document.getElementById('dance-audio-pool');
     els.danceTrackTitle = document.getElementById('dance-track-title');
     els.danceTrack = document.getElementById('dance-track');
-    els.panicAudio = [0, 1, 2, 3, 4, 5].map(i => document.getElementById('audio-panic-' + i));
+}
+
+// ── SFX (Howler / Web Audio) ─────────────────
+// Short sound effects route through Howler for low-latency triggering.
+// Long-form audio (dance tracks) stays on HTMLAudioElement.
+const SFX_DEFS = {
+    spinner:           { src: 'audio/spinner.mp3', loop: true },
+    shutter:           { src: 'audio/shutter.mp3' },
+    applause:          { src: 'audio/applause.mp3' },
+    oscarApplause:     { src: 'audio/applause.mp3' },
+    explosion:         { src: 'audio/creeper-explosion.mp3' },
+    announcePhotobooth:{ src: 'audio/photobooth.mp3' },
+    announceDance:     { src: 'audio/dance.mp3' },
+    announceConfession:{ src: 'audio/confession.mp3' },
+    announceMirror:    { src: 'audio/funhouse-mirror.mp3' },
+    announceOscar:     { src: 'audio/oscar.mp3' },
+    panic0:            { src: 'audio/stop.mp3' },
+    panic1:            { src: "audio/don't.mp3" },
+    panic2:            { src: 'audio/please-stop-pressing-the-button.mp3' },
+    panic3:            { src: 'audio/why-are-you-doing-this.mp3' },
+    panic4:            { src: "audio/i'm-calling-my-mom.mp3" },
+    panic5:            { src: 'audio/self-destruct.mp3' },
+};
+const SFX = {};
+function loadSfx() {
+    if (typeof Howl !== 'function') {
+        console.warn('[sfx] Howler not loaded');
+        return;
+    }
+    for (const [key, cfg] of Object.entries(SFX_DEFS)) {
+        SFX[key] = new Howl({ src: [cfg.src], loop: !!cfg.loop, preload: true });
+    }
+}
+function playSfx(key) {
+    const s = SFX[key];
+    if (!s) return;
+    s.stop();
+    s.play();
+}
+function stopSfx(key) {
+    const s = SFX[key];
+    if (s) s.stop();
+}
+function stopAllSfx() {
+    for (const s of Object.values(SFX)) {
+        try { s.stop(); } catch {}
+    }
 }
 
 // ── Boot ─────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
     cacheEls();
+    loadSfx();
     document.addEventListener('keydown', onKeyDown);
 
     try {
@@ -299,6 +344,7 @@ function cleanupEverything() {
     els.progressBarContainer.classList.remove('visible');
     els.flashOverlay.style.opacity = '0';
 
+    stopAllSfx();
     document.querySelectorAll('audio').forEach(a => {
         try { a.pause(); a.currentTime = 0; } catch (e) {}
     });
@@ -352,8 +398,7 @@ function startSpin() {
                 selectorAnim.offset = Math.round(selectorAnim.offset / ITEM_HEIGHT) * ITEM_HEIGHT;
                 selectorAnim.velocity = 0;
                 selectorAnim.phase = 'stopped';
-                els.audioSpinner.pause();
-                els.audioSpinner.currentTime = 0;
+                stopSfx('spinner');
                 drawSelector();
                 onSelectorStopped();
                 return;
@@ -363,7 +408,7 @@ function startSpin() {
         selectorAnim.rafId = requestAnimationFrame(tick);
     };
     selectorAnim.rafId = requestAnimationFrame(tick);
-    playAudio(els.audioSpinner);
+    playSfx('spinner');
 }
 
 function stopWheelAndLock() {
@@ -475,8 +520,9 @@ function showModeLocked(mode) {
 }
 
 function playAnnounce(modeId) {
-    const el = document.getElementById('audio-announce-' + modeId);
-    playAudio(el);
+    // Map a mode id (e.g. 'photobooth') to its SFX key ('announcePhotobooth').
+    const key = 'announce' + modeId.charAt(0).toUpperCase() + modeId.slice(1);
+    playSfx(key);
 }
 
 // ── Panic easter egg ─────────────────────────
@@ -520,7 +566,7 @@ function advancePanic() {
     if (levelChanged) {
         els.panicMessage.textContent = PANIC_MESSAGES[level];
     }
-    playAudio(els.panicAudio[level]);
+    playSfx('panic' + level);
 
     // Final level: arm the self-destruct sequence — no exit prompt, no more presses
     if (level === PANIC_MESSAGES.length - 1) {
@@ -542,7 +588,17 @@ function armSelfDestruct() {
     selfDestructArmed = true;
     if (els.panicMessage) els.panicMessage.classList.add('panic-armed');
 
-    // self-destruct.mp3 is ~7.1s of "5..4..3..2..1" — detonate just before it ends
+    // self-destruct.mp3 is ~7.1s of "5..4..3..2..1" — detonate just before it ends.
+    // Boom SFX has a fuse fizz before the actual BANG, so kick it off early so
+    // the BANG lands on the visual flash. (Howler/Web Audio = essentially zero
+    // trigger latency, so the offset can be precise.)
+    timers.panicBoomCue = {
+        kind: 'timeout',
+        id: setTimeout(() => {
+            delete timers.panicBoomCue;
+            playSfx('explosion');
+        }, 5400)
+    };
     timers.panicDetonate = {
         kind: 'timeout',
         id: setTimeout(() => {
@@ -558,8 +614,6 @@ function detonate() {
         els.panicMessage.classList.remove('panic-armed');
         els.panicMessage.classList.add('panic-detonate');
     }
-
-    playAudio(els.audioExplosion);
 
     if (typeof confetti === 'function') {
         const colors = ['#ff2244', '#ff7a00', '#ffd400', '#ffffff'];
@@ -842,7 +896,7 @@ async function oscarMode() {
 
     // Short pause so the announcer from the mode-locked screen is clearly heard
     await sleep(600);
-    playAudio(els.audioOscarApplause);
+    playSfx('oscarApplause');
 
     await sleep(2200);
     els.oscarText.textContent = 'YOU!';
@@ -860,7 +914,7 @@ async function oscarMode() {
 
     const blob = await startRecording(stream, DURATIONS.oscar);
 
-    playAudio(els.audioApplause);
+    playSfx('applause');
     els.overlayOscar.classList.remove('active');
     await uploadVideoAndShowQR(blob, { prompt: 'oscar', label: 'Your Oscar moment is saved!' });
 }
@@ -1131,7 +1185,7 @@ async function photoboothMode() {
         els.photoCountdownDisplay.textContent = '';
 
         flashWhite();
-        playAudio(els.audioShutter);
+        playSfx('shutter');
         await sleep(40);
 
         const photoCanvas = capturePhoto(videoEl);
@@ -1338,15 +1392,6 @@ function sleep(ms) {
         }, ms);
         timers['sleep_' + id] = { kind: 'timeout', id };
     });
-}
-
-function playAudio(el) {
-    if (!el) return;
-    try {
-        el.currentTime = 0;
-        const p = el.play();
-        if (p && p.catch) p.catch(e => console.warn('audio play failed:', e));
-    } catch (e) {}
 }
 
 function playDanceTrackFromRandomOffset(el, neededSeconds) {
