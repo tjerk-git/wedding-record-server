@@ -20,6 +20,10 @@ const dancefloorDir = path.join(DATA_DIR, 'dancefloor');
 const videoThumbsDir = path.join(DATA_DIR, 'video-thumbs');
 const CONFIG_PATH = path.join(DATA_DIR, 'config.json');
 
+// Logo uploads: use project's public/images/logo-uploads for local dev,
+// or /data/public/images/logo-uploads on Fly.io where DATA_DIR=/data
+const logoUploadDir = path.join(__dirname, 'public', 'images', 'logo-uploads');
+
 if (!fs.existsSync(uploadsDir)) {
     fs.mkdirSync(uploadsDir, { recursive: true });
 }
@@ -28,6 +32,9 @@ if (!fs.existsSync(dancefloorDir)) {
 }
 if (!fs.existsSync(videoThumbsDir)) {
     fs.mkdirSync(videoThumbsDir, { recursive: true });
+}
+if (!fs.existsSync(logoUploadDir)) {
+    fs.mkdirSync(logoUploadDir, { recursive: true });
 }
 
 // ── Cutout extraction (dance mode) ───────────────────────────────────────────
@@ -336,10 +343,12 @@ app.use(express.json());
 app.use(express.static('public'));
 app.use('/uploads', express.static(uploadsDir));
 app.use('/dancefloor-assets', express.static(dancefloorDir, { maxAge: '1h', immutable: true }));
+app.use('/images/logo-uploads', express.static(logoUploadDir, { maxAge: '1h' }));
 
 // ── Multer (memory storage, 50 MB limit) ─────────────────────────────────────
 const ALLOWED_VIDEO_MIME = new Set(['video/webm', 'video/mp4', 'video/quicktime']);
-const ALLOWED_IMAGE_MIME = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp']);
+const ALLOWED_IMAGE_MIME = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/heic', 'image/heif']);
+const ALLOWED_LOGO_MIME = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/heic', 'image/heif']);
 
 const upload = multer({
     storage: multer.memoryStorage(),
@@ -382,6 +391,91 @@ app.post('/api/upload/video', uploadLimiter, upload.single('video'), async (req,
     } catch (error) {
         console.error('Video upload error:', error);
         res.status(500).json({ success: false, error: 'Video upload failed' });
+    }
+});
+
+// Upload logo (admin only, for custom branding)
+const logoUpload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 10 * 1024 * 1024 },
+    fileFilter: (req, file, cb) => {
+        const mime = file.mimetype.split('/')[0];
+        if (mime === 'image') {
+            cb(null, true);
+        } else {
+            cb(new Error('Only image files are allowed'), false);
+        }
+    }
+});
+
+app.post('/api/upload/logo', adminLimiter, requireAdmin, logoUpload.single('logo'), async (req, res) => {
+    try {
+        if (!req.file) return res.status(400).json({ success: false, error: 'No file uploaded' });
+
+        const rawMime = (req.file.mimetype || '').split(';')[0].trim();
+        
+        // Map MIME to extension
+        const extMap = {
+            'image/jpeg': 'jpg',
+            'image/png': 'png',
+            'image/gif': 'gif',
+            'image/webp': 'webp',
+            'image/heic': 'heic',
+            'image/heif': 'heif'
+        };
+        const extension = extMap[rawMime] || 'png';
+        
+        // Use a fixed filename: user-logo.{ext}
+        const finalFilename = `user-logo.${extension}`;
+        const filePath = path.join(logoUploadDir, finalFilename);
+        
+        // Save the file
+        fs.writeFileSync(filePath, req.file.buffer);
+        
+        // Update config to use this logo
+        const current = readConfig();
+        current.logoPath = `images/logo-uploads/${finalFilename}`;
+        writeConfig(current);
+        
+        broadcastKiosk('reload', { reason: 'config' });
+        
+        res.json({ 
+            success: true, 
+            logoPath: current.logoPath,
+            url: `/${current.logoPath}`
+        });
+    } catch (error) {
+        console.error('Logo upload error:', error);
+        res.status(500).json({ success: false, error: 'Logo upload failed' });
+    }
+});
+
+// Delete logo (reset to default)
+app.delete('/api/upload/logo', adminLimiter, requireAdmin, (req, res) => {
+    try {
+        const current = readConfig();
+        
+        // Only delete if it's in the logo-uploads directory
+        if (current.logoPath && current.logoPath.includes('logo-uploads/')) {
+            const logoPath = path.join(__dirname, 'public', current.logoPath);
+            try {
+                if (fs.existsSync(logoPath)) {
+                    fs.unlinkSync(logoPath);
+                }
+            } catch (e) {
+                console.warn('Failed to delete old logo:', e);
+            }
+        }
+        
+        // Reset to default
+        current.logoPath = 'images/cmd-logo.svg';
+        writeConfig(current);
+        broadcastKiosk('reload', { reason: 'config' });
+        
+        res.json({ success: true, logoPath: current.logoPath });
+    } catch (error) {
+        console.error('Logo delete error:', error);
+        res.status(500).json({ success: false, error: 'Logo delete failed' });
     }
 });
 

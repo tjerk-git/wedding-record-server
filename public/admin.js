@@ -248,6 +248,22 @@ function renderSettings() {
             <input type="text" id="logoPath" maxlength="200" value="${escapeHtml(config.logoPath || 'images/cmd-logo.svg')}">
             <p class="hint">Path to logo image (e.g., images/cmd-logo.svg or images/my-logo.png).</p>
         </div>
+
+        <div class="field full">
+            <label class="field-label">Upload custom logo</label>
+            <div class="field-row">
+                <input type="file" id="logoUpload" accept="image/jpeg,image/png,image/gif,image/webp,image/heic,image/heif">
+                <button id="uploadLogoBtn" class="btn-primary">Upload</button>
+                <button id="resetLogoBtn" class="btn-secondary" ${!config.logoPath || !config.logoPath.includes('logo-uploads/') ? 'disabled' : ''}>Reset to default</button>
+            </div>
+            <p class="hint">Upload a custom logo (JPEG, PNG, GIF, WebP, HEIC). Max 10MB.</p>
+            <div id="logoPreview" style="margin-top: 10px;">
+                ${config.logoPath && config.logoPath.includes('logo-uploads/') 
+                    ? `<img src="/${config.logoPath}" style="max-width: 200px; max-height: 100px; border-radius: 4px;" alt="Current logo">`
+                    : '<p style="color: var(--fg-3);">Using default CMD logo</p>'
+                }
+            </div>
+        </div>
     `;
 
     const bind = (id, key, type) => {
@@ -266,6 +282,91 @@ function renderSettings() {
     bind('stripBrandText',   'stripBrandText',   'str');
     bind('buttonText',       'buttonText',       'str');
     bind('logoPath',        'logoPath',        'str');
+
+    // Logo upload handlers
+    const logoUploadInput = form.querySelector('#logoUpload');
+    const uploadLogoBtn = form.querySelector('#uploadLogoBtn');
+    const resetLogoBtn = form.querySelector('#resetLogoBtn');
+    const logoPreview = form.querySelector('#logoPreview');
+
+    uploadLogoBtn.addEventListener('click', async () => {
+        const file = logoUploadInput.files[0];
+        if (!file) {
+            toast('Please select a file first');
+            return;
+        }
+
+        const validTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/heic', 'image/heif'];
+        if (!validTypes.includes(file.type)) {
+            toast('Please select a valid image file (JPEG, PNG, GIF, WebP, HEIC)');
+            return;
+        }
+
+        if (file.size > 10 * 1024 * 1024) {
+            toast('File is too large (max 10MB)');
+            return;
+        }
+
+        uploadLogoBtn.disabled = true;
+        uploadLogoBtn.textContent = 'Uploading...';
+
+        try {
+            const fd = new FormData();
+            fd.append('logo', file);
+
+            const res = await fetch('/api/upload/logo', {
+                method: 'POST',
+                body: fd
+            });
+
+            const data = await res.json();
+
+            if (res.ok && data.success) {
+                toast('Logo uploaded successfully!');
+                config.logoPath = data.logoPath;
+                logoPreview.innerHTML = `<img src="/${data.logoPath}" style="max-width: 200px; max-height: 100px; border-radius: 4px;" alt="Current logo">`;
+                resetLogoBtn.disabled = false;
+                // Update the text input as well
+                form.querySelector('#logoPath').value = data.logoPath;
+            } else {
+                toast(data.error || 'Upload failed');
+            }
+        } catch (e) {
+            toast('Upload failed: ' + e.message);
+        } finally {
+            uploadLogoBtn.disabled = false;
+            uploadLogoBtn.textContent = 'Upload';
+            logoUploadInput.value = '';
+        }
+    });
+
+    resetLogoBtn.addEventListener('click', async () => {
+        if (!confirm('Reset to default CMD logo?')) return;
+
+        resetLogoBtn.disabled = true;
+        resetLogoBtn.textContent = 'Resetting...';
+
+        try {
+            const res = await fetch('/api/upload/logo', { method: 'DELETE' });
+            const data = await res.json();
+
+            if (res.ok && data.success) {
+                toast('Logo reset to default');
+                config.logoPath = data.logoPath;
+                logoPreview.innerHTML = '<p style="color: var(--fg-3);">Using default CMD logo</p>';
+                resetLogoBtn.disabled = true;
+                // Update the text input as well
+                form.querySelector('#logoPath').value = data.logoPath;
+            } else {
+                toast(data.error || 'Reset failed');
+            }
+        } catch (e) {
+            toast('Reset failed: ' + e.message);
+        } finally {
+            resetLogoBtn.disabled = false;
+            resetLogoBtn.textContent = 'Reset to default';
+        }
+    });
 }
 
 // ── Uploads panel ────────────────────────────
