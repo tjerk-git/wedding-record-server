@@ -660,6 +660,32 @@ body {
   padding: 1.5rem 2.5rem;
 }
 
+/* Video Message */
+#overlay-video-message {
+  background: rgba(0, 0, 0, 0.35);
+}
+
+#video-message-text {
+  position: absolute;
+  top: 3rem;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: 860px;
+  width: 90%;
+  font-size: var(--text-h3);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  color: #ffffff;
+  text-align: center;
+  text-shadow: 0 4px 30px rgba(0,0,0,0.7);
+  background: rgba(16, 185, 129, 0.55);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-radius: 1.5rem;
+  padding: 1.5rem 2.5rem;
+}
+
 /* Karaoke */
 
 #karaoke-lyric {

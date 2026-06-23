@@ -7,11 +7,12 @@
 // ── Mode definitions ─────────────────────────
 // Source-of-truth ordered list. Filtered by config.enabled at boot.
 const ALL_MODES = [
-    { id: 'photobooth', name: 'PHOTO BOOTH',     color: '#FF6BB5', textColor: '#170c25' },
-    { id: 'dance',      name: 'DANCE PARTY',     color: '#8126FF', textColor: '#ffffff' },
-    { id: 'confession', name: 'CONFESSION',      color: '#384BDA', textColor: '#ffffff' },
-    { id: 'mirror',     name: 'FUNHOUSE MIRROR', color: '#26ccff', textColor: '#170c25' },
-    { id: 'oscar',      name: 'OSCAR SPEECH',    color: '#FFD700', textColor: '#170c25' }
+    { id: 'photobooth',   name: 'PHOTO BOOTH',     color: '#FF6BB5', textColor: '#170c25' },
+    { id: 'dance',        name: 'DANCE PARTY',     color: '#8126FF', textColor: '#ffffff' },
+    { id: 'confession',   name: 'CONFESSION',      color: '#384BDA', textColor: '#ffffff' },
+    { id: 'mirror',       name: 'FUNHOUSE MIRROR', color: '#26ccff', textColor: '#170c25' },
+    { id: 'oscar',        name: 'OSCAR SPEECH',    color: '#FFD700', textColor: '#170c25' },
+    { id: 'video_message',name: 'VIDEO MESSAGE',   color: '#10B981', textColor: '#170c25' }
 ];
 const MODES = ALL_MODES.slice();
 
@@ -46,14 +47,16 @@ const CONFESSION_PROMPTS = [
 
 const KARAOKE_SONGS = [];
 
-const DURATIONS = { dance: 15, confession: 15, mirror: 15, oscar: 30 };
-const WEIGHTS   = { photobooth: 3, dance: 3, confession: 3, mirror: 3, oscar: 3 };
+const DURATIONS = { dance: 15, confession: 15, mirror: 15, oscar: 30, video_message: 15 };
+const WEIGHTS   = { photobooth: 3, dance: 3, confession: 3, mirror: 3, oscar: 3, video_message: 3 };
 let POOL = [];  // weighted selector pool, rebuilt by buildSelectorItems()
 let QR_DISPLAY_SECONDS = 20;
 let SELECTOR_VELOCITY = 18;
 let SHOW_CONFETTI = true;
 let STRIP_BRAND_TEXT = 'CMD LWD VIDEOBOOTH';
 let VIDEO_GRID_COUNT = 24;
+let BUTTON_TEXT = 'PRESS THE<BR>BUTTON';
+let LOGO_PATH = 'images/cmd-logo.svg';
 
 // ── State ────────────────────────────────────
 let state = 'IDLE';   // 'IDLE' | 'SPIN' | 'MODE_LOCKED' | 'ACTION' | 'QR' | 'PANIC'
@@ -98,9 +101,11 @@ function cacheEls() {
         'overlay-dance', 'dance-text', 'dance-notes',
         'overlay-oscar', 'oscar-text',
         'overlay-photobooth', 'photo-instruction', 'photo-countdown-display',
+        'overlay-video-message', 'video-message-text',
         'qr-loading', 'qr-image', 'qr-url', 'qr-label', 'qr-countdown',
         'record-timer', 'progress-bar', 'progress-bar-container',
-        'panic-message'
+        'panic-message',
+        'idle-logo', 'idle-button-text', 'qr-logo', 'corner-logo-img'
     ];
     ids.forEach(id => {
         const camelKey = id.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
@@ -118,22 +123,23 @@ function cacheEls() {
 // Short sound effects route through Howler for low-latency triggering.
 // Long-form audio (dance tracks) stays on HTMLAudioElement.
 const SFX_DEFS = {
-    spinner:           { src: 'audio/spinner.mp3', loop: true },
-    shutter:           { src: 'audio/shutter.mp3' },
-    applause:          { src: 'audio/applause.mp3' },
-    oscarApplause:     { src: 'audio/applause.mp3' },
-    explosion:         { src: 'audio/creeper-explosion.mp3' },
-    announcePhotobooth:{ src: 'audio/photobooth.mp3' },
-    announceDance:     { src: 'audio/dance.mp3' },
-    announceConfession:{ src: 'audio/confession.mp3' },
-    announceMirror:    { src: 'audio/funhouse-mirror.mp3' },
-    announceOscar:     { src: 'audio/oscar.mp3' },
-    panic0:            { src: 'audio/stop.mp3' },
-    panic1:            { src: "audio/don't.mp3" },
-    panic2:            { src: 'audio/please-stop-pressing-the-button.mp3' },
-    panic3:            { src: 'audio/why-are-you-doing-this.mp3' },
-    panic4:            { src: "audio/i'm-calling-my-mom.mp3" },
-    panic5:            { src: 'audio/self-destruct.mp3' },
+    spinner:             { src: 'audio/spinner.mp3', loop: true },
+    shutter:             { src: 'audio/shutter.mp3' },
+    applause:            { src: 'audio/applause.mp3' },
+    oscarApplause:       { src: 'audio/applause.mp3' },
+    explosion:           { src: 'audio/creeper-explosion.mp3' },
+    announcePhotobooth:  { src: 'audio/photobooth.mp3' },
+    announceDance:       { src: 'audio/dance.mp3' },
+    announceConfession:  { src: 'audio/confession.mp3' },
+    announceMirror:      { src: 'audio/funhouse-mirror.mp3' },
+    announceOscar:       { src: 'audio/oscar.mp3' },
+    announceVideoMessage:{ src: 'audio/video-message.mp3' },
+    panic0:              { src: 'audio/stop.mp3' },
+    panic1:              { src: "audio/don't.mp3" },
+    panic2:              { src: 'audio/please-stop-pressing-the-button.mp3' },
+    panic3:              { src: 'audio/why-are-you-doing-this.mp3' },
+    panic4:              { src: "audio/i'm-calling-my-mom.mp3" },
+    panic5:              { src: 'audio/self-destruct.mp3' },
 };
 const SFX = {};
 function loadSfx() {
@@ -222,8 +228,30 @@ function applyConfig(cfg) {
     if (typeof cfg.showConfetti === 'boolean')    SHOW_CONFETTI = cfg.showConfetti;
     if (typeof cfg.stripBrandText === 'string')   STRIP_BRAND_TEXT = cfg.stripBrandText;
     if (typeof cfg.videoGridCount === 'number')   VIDEO_GRID_COUNT = cfg.videoGridCount;
+    if (typeof cfg.buttonText === 'string')       BUTTON_TEXT = cfg.buttonText;
+    if (typeof cfg.logoPath === 'string')        LOGO_PATH = cfg.logoPath;
+
+    updateBranding();
 
     console.log('[config] applied:', { modes: MODES.map(m => m.id), DURATIONS, QR_DISPLAY_SECONDS, SHOW_CONFETTI });
+}
+
+function updateBranding() {
+    // Update idle screen
+    if (els.idleButtonText) {
+        // Replace <BR> with actual <br> for HTML
+        els.idleButtonText.innerHTML = BUTTON_TEXT.replace(/<BR>/gi, '<br>');
+    }
+    // Update logos
+    const logoSrc = LOGO_PATH;
+    if (els.idleLogo) els.idleLogo.src = logoSrc;
+    if (els.qrLogo) els.qrLogo.src = logoSrc;
+    if (els.cornerLogoImg) els.cornerLogoImg.src = logoSrc;
+    // Set alt text based on filename
+    const logoName = LOGO_PATH.split('/').pop().replace('.svg', '').replace('.png', '').replace('.jpg', '').replace('.jpeg', '');
+    if (els.idleLogo) els.idleLogo.alt = logoName;
+    if (els.qrLogo) els.qrLogo.alt = logoName;
+    if (els.cornerLogoImg) els.cornerLogoImg.alt = logoName;
 }
 
 window.addEventListener('beforeunload', cleanupEverything);
@@ -662,11 +690,12 @@ async function runMode(id) {
     console.log('[mode] running:', id);
     try {
         switch (id) {
-            case 'photobooth': await photoboothMode(); break;
-            case 'dance':      await danceMode();      break;
-            case 'confession': await confessionMode(); break;
-            case 'mirror':     await mirrorMode();     break;
-            case 'oscar':      await oscarMode();      break;
+            case 'photobooth':   await photoboothMode();   break;
+            case 'dance':        await danceMode();        break;
+            case 'confession':   await confessionMode();   break;
+            case 'mirror':       await mirrorMode();       break;
+            case 'oscar':        await oscarMode();        break;
+            case 'video_message':await videoMessageMode(); break;
             default: throw new Error('Unknown mode: ' + id);
         }
     } catch (e) {
@@ -917,6 +946,21 @@ async function oscarMode() {
     playSfx('applause');
     els.overlayOscar.classList.remove('active');
     await uploadVideoAndShowQR(blob, { prompt: 'oscar', label: 'Your Oscar moment is saved!' });
+}
+
+// ── Mode: Video Message ────────────────────────
+async function videoMessageMode() {
+    showScreen('ACTION');
+    els.overlayVideoMessage.classList.add('active');
+    els.videoMessageText.textContent = 'Record your video message!';
+
+    const { stream } = await startCameraVideoElement({ audio: true });
+    await showCountdown(3);
+
+    const blob = await startRecording(stream, DURATIONS.video_message);
+
+    els.overlayVideoMessage.classList.remove('active');
+    await uploadVideoAndShowQR(blob, { prompt: 'video_message', label: 'Your video message is saved!' });
 }
 
 // ── Mode: Dance ──────────────────────────────

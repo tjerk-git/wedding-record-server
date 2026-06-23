@@ -270,17 +270,20 @@ function requireAdmin(req, res, next) {
 // ── Admin config persistence ─────────────────────────────────────────────────
 const DEFAULT_CONFIG = {
     modes: {
-        photobooth: { enabled: true, duration: 0,  weight: 3 },
-        dance:      { enabled: true, duration: 15, weight: 3 },
-        confession: { enabled: true, duration: 15, weight: 3 },
-        mirror:     { enabled: true, duration: 15, weight: 3 },
-        oscar:      { enabled: true, duration: 30, weight: 3 }
+        photobooth:   { enabled: true, duration: 0,  weight: 3 },
+        dance:        { enabled: true, duration: 15, weight: 3 },
+        confession:   { enabled: true, duration: 15, weight: 3 },
+        mirror:       { enabled: true, duration: 15, weight: 3 },
+        oscar:        { enabled: true, duration: 30, weight: 3 },
+        video_message:{ enabled: true, duration: 15, weight: 3 }
     },
     qrDisplaySeconds: 20,
     selectorVelocity: 18,
     showConfetti: true,
     stripBrandText: 'CMD LWD VIDEOBOOTH',
-    videoGridCount: 24
+    videoGridCount: 24,
+    buttonText: 'PRESS THE<BR>BUTTON',
+    logoPath: 'images/cmd-logo.svg'
 };
 
 function readConfig() {
@@ -934,6 +937,8 @@ app.put('/api/config', adminLimiter, requireAdmin, (req, res) => {
         if ('videoGridCount' in merged)   merged.videoGridCount   = Math.max(0,  Math.min(48,  Number(merged.videoGridCount)   || 24));
         if ('showConfetti' in merged)     merged.showConfetti     = !!merged.showConfetti;
         if ('stripBrandText' in merged)   merged.stripBrandText   = String(merged.stripBrandText).slice(0, 80);
+        if ('buttonText' in merged)       merged.buttonText       = String(merged.buttonText || 'PRESS THE<BR>BUTTON').slice(0, 200);
+        if ('logoPath' in merged)        merged.logoPath        = String(merged.logoPath || 'images/cmd-logo.svg').slice(0, 200);
 
         writeConfig(merged);
         broadcastKiosk('reload', { reason: 'config' });

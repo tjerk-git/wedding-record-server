@@ -2,11 +2,12 @@
 
 // Mode metadata mirrors the kiosk's ALL_MODES order. Keep in sync.
 const MODES_META = [
-    { id: 'photobooth', name: 'PHOTO BOOTH',     color: '#FF6BB5', desc: '3-shot photo strip with white-flash effect.', durationConfigurable: false, durationLabel: '3 photos × 3s countdown' },
-    { id: 'dance',      name: 'DANCE PARTY',     color: '#8126FF', desc: 'Music plays, animated notes, recording at the same time.', durationConfigurable: true },
-    { id: 'confession', name: 'CONFESSION',      color: '#384BDA', desc: 'Random prompt shown before recording.', durationConfigurable: true },
-    { id: 'mirror',     name: 'FUNHOUSE MIRROR', color: '#26ccff', desc: 'Distortion drawn to canvas, captured as video.', durationConfigurable: true },
-    { id: 'oscar',      name: 'OSCAR SPEECH',    color: '#FFD700', desc: 'Theatrical buildup then 30s acceptance speech.', durationConfigurable: true }
+    { id: 'photobooth',   name: 'PHOTO BOOTH',     color: '#FF6BB5', desc: '3-shot photo strip with white-flash effect.', durationConfigurable: false, durationLabel: '3 photos × 3s countdown' },
+    { id: 'dance',        name: 'DANCE PARTY',     color: '#8126FF', desc: 'Music plays, animated notes, recording at the same time.', durationConfigurable: true },
+    { id: 'confession',   name: 'CONFESSION',      color: '#384BDA', desc: 'Random prompt shown before recording.', durationConfigurable: true },
+    { id: 'mirror',       name: 'FUNHOUSE MIRROR', color: '#26ccff', desc: 'Distortion drawn to canvas, captured as video.', durationConfigurable: true },
+    { id: 'oscar',        name: 'OSCAR SPEECH',    color: '#FFD700', desc: 'Theatrical buildup then 30s acceptance speech.', durationConfigurable: true },
+    { id: 'video_message',name: 'VIDEO MESSAGE',   color: '#10B981', desc: 'Simple video recording with no special effects.', durationConfigurable: true }
 ];
 
 let config = null;
@@ -235,6 +236,18 @@ function renderSettings() {
             <input type="text" id="stripBrandText" maxlength="80" value="${escapeHtml(config.stripBrandText || '')}">
             <p class="hint">Shown on the bottom band of each photobooth strip.</p>
         </div>
+
+        <div class="field full">
+            <label class="field-label" for="buttonText">Idle screen button text</label>
+            <input type="text" id="buttonText" maxlength="200" value="${escapeHtml(config.buttonText || 'PRESS THE<BR>BUTTON')}">
+            <p class="hint">Use &lt;BR&gt; for line breaks. Shown on the idle screen.</p>
+        </div>
+
+        <div class="field full">
+            <label class="field-label" for="logoPath">Logo image path</label>
+            <input type="text" id="logoPath" maxlength="200" value="${escapeHtml(config.logoPath || 'images/cmd-logo.svg')}">
+            <p class="hint">Path to logo image (e.g., images/cmd-logo.svg or images/my-logo.png).</p>
+        </div>
     `;
 
     const bind = (id, key, type) => {
@@ -251,6 +264,8 @@ function renderSettings() {
     bind('videoGridCount',   'videoGridCount',   'num');
     bind('showConfetti',     'showConfetti',     'bool');
     bind('stripBrandText',   'stripBrandText',   'str');
+    bind('buttonText',       'buttonText',       'str');
+    bind('logoPath',        'logoPath',        'str');
 }
 
 // ── Uploads panel ────────────────────────────

@@ -1,129 +1,145 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CMD LWD Videobooth</title>
-    <link rel="stylesheet" href="style.css">
-</head>
-<body>
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>CMD LWD Videobooth</title>
+        <link rel="stylesheet" href="style.css" />
+    </head>
+    <body>
+        <!-- Background layers -->
+        <div id="video-grid-background"></div>
+        <img src="images/woolly.png" alt="" id="bg-shape" aria-hidden="true" />
 
-    <!-- Background layers -->
-    <div id="video-grid-background"></div>
-    <img src="images/woolly.png" alt="" id="bg-shape" aria-hidden="true">
+        <!-- Camera feed container -->
+        <div id="video"></div>
 
-    <!-- Camera feed container -->
-    <div id="video"></div>
+        <!-- Mirror mode canvas (draws distorted camera frames) -->
+        <canvas id="mirror-canvas"></canvas>
 
-    <!-- Mirror mode canvas (draws distorted camera frames) -->
-    <canvas id="mirror-canvas"></canvas>
+        <!-- Flash effect (photobooth) -->
+        <div id="flash-overlay"></div>
 
-    <!-- Flash effect (photobooth) -->
-    <div id="flash-overlay"></div>
-
-    <!-- IDLE state -->
-    <div id="screen-idle" class="screen">
-        <div id="intro">
-            <img src="images/cmd-logo.svg" class="cmd-logo" alt="CMD LWD">
-            <h1>DO NOT<br>PRESS THE<br>BUTTON</h1>
-        </div>
-    </div>
-
-    <!-- SPIN state (vertical selector) -->
-    <div id="screen-spin" class="screen">
-        <div id="selector-frame">
-            <div id="selector-viewport">
-                <div id="selector-list"></div>
+        <!-- IDLE state -->
+        <div id="screen-idle" class="screen">
+            <div id="intro">
+                <img id="idle-logo" class="cmd-logo" alt="CMD LWD" />
+                <h1 id="idle-button-text">PRESS THE<BR>BUTTON</h1>
             </div>
-            <div id="selector-marker-top"></div>
-            <div id="selector-marker-bottom"></div>
         </div>
-        <p id="spin-hint">PRESS THE BUTTON TO LOCK IN YOUR MODE!</p>
-    </div>
 
-    <!-- MODE_LOCKED state (big reveal) -->
-    <div id="screen-mode-locked" class="screen">
-        <div id="mode-locked-icon"></div>
-        <div id="mode-locked-name"></div>
-    </div>
-
-    <!-- MODE_ACTION overlays (shown over camera feed, not screens) -->
-    <div id="action-countdown"></div>
-
-    <div id="overlay-confession" class="mode-overlay">
-        <div id="confession-prompt"></div>
-    </div>
-
-    <div id="overlay-dance" class="mode-overlay">
-        <!-- Flashing colour lights -->
-        <div class="dance-light dance-light-1"></div>
-        <div class="dance-light dance-light-2"></div>
-        <div class="dance-light dance-light-3"></div>
-        <div class="dance-light dance-light-4"></div>
-        <!-- Disco balls -->
-        <div class="disco-ball-wrap disco-ball-wrap-1">
-            <div class="disco-string"></div>
-            <img class="disco-ball-img" src="images/disco-ball-png-27288.gif" alt="">
+        <!-- SPIN state (vertical selector) -->
+        <div id="screen-spin" class="screen">
+            <div id="selector-frame">
+                <div id="selector-viewport">
+                    <div id="selector-list"></div>
+                </div>
+                <div id="selector-marker-top"></div>
+                <div id="selector-marker-bottom"></div>
+            </div>
+            <p id="spin-hint">PRESS THE BUTTON TO LOCK IN YOUR MODE!</p>
         </div>
-        <div class="disco-ball-wrap disco-ball-wrap-2">
-            <div class="disco-string"></div>
-            <img class="disco-ball-img" src="images/disco-ball-png-27263.png" alt="">
+
+        <!-- MODE_LOCKED state (big reveal) -->
+        <div id="screen-mode-locked" class="screen">
+            <div id="mode-locked-icon"></div>
+            <div id="mode-locked-name"></div>
         </div>
-        <div id="dance-text">DANCE!</div>
-        <div id="dance-track">
-            <div id="dance-track-label">NOW PLAYING</div>
-            <div id="dance-track-title"></div>
+
+        <!-- MODE_ACTION overlays (shown over camera feed, not screens) -->
+        <div id="action-countdown"></div>
+
+        <div id="overlay-confession" class="mode-overlay">
+            <div id="confession-prompt"></div>
         </div>
-        <div id="dance-notes" aria-hidden="true"></div>
-    </div>
 
-    <div id="overlay-oscar" class="mode-overlay">
-        <div id="oscar-text"></div>
-        <img id="oscar-statue" src="images/oscar.png" alt="" aria-hidden="true">
-    </div>
-
-    <div id="overlay-photobooth" class="mode-overlay">
-        <div id="photo-instruction"></div>
-        <div id="photo-countdown-display"></div>
-        <div id="strip-preview">
-            <div class="strip-slot" id="strip-slot-0"></div>
-            <div class="strip-slot" id="strip-slot-1"></div>
-            <div class="strip-slot" id="strip-slot-2"></div>
+        <div id="overlay-dance" class="mode-overlay">
+            <!-- Flashing colour lights -->
+            <div class="dance-light dance-light-1"></div>
+            <div class="dance-light dance-light-2"></div>
+            <div class="dance-light dance-light-3"></div>
+            <div class="dance-light dance-light-4"></div>
+            <!-- Disco balls -->
+            <div class="disco-ball-wrap disco-ball-wrap-1">
+                <div class="disco-string"></div>
+                <img
+                    class="disco-ball-img"
+                    src="images/disco-ball-png-27288.gif"
+                    alt=""
+                />
+            </div>
+            <div class="disco-ball-wrap disco-ball-wrap-2">
+                <div class="disco-string"></div>
+                <img
+                    class="disco-ball-img"
+                    src="images/disco-ball-png-27263.png"
+                    alt=""
+                />
+            </div>
+            <div id="dance-text">DANCE!</div>
+            <div id="dance-track">
+                <div id="dance-track-label">NOW PLAYING</div>
+                <div id="dance-track-title"></div>
+            </div>
+            <div id="dance-notes" aria-hidden="true"></div>
         </div>
-    </div>
 
-    <!-- PANIC state (secret rapid-press easter egg) -->
-    <div id="screen-panic" class="screen">
-        <div id="panic-message"></div>
-    </div>
-
-    <!-- QR state -->
-    <div id="screen-qr" class="screen">
-        <div id="qr-screen">
-            <img src="images/cmd-logo.svg" class="cmd-logo" alt="CMD LWD">
-            <p id="qr-label">Scan to keep your memory!</p>
-            <div id="qr-loading">Saving...</div>
-            <img id="qr-image" alt="QR code" style="display:none">
-            <p id="qr-url"></p>
-            <p id="qr-countdown"></p>
+        <div id="overlay-oscar" class="mode-overlay">
+            <div id="oscar-text"></div>
+            <img
+                id="oscar-statue"
+                src="images/oscar.png"
+                alt=""
+                aria-hidden="true"
+            />
         </div>
-    </div>
 
-    <!-- Persistent UI elements -->
-    <div id="corner-logo">
-        <img src="images/cmd-logo.svg" alt="CMD LWD">
-    </div>
-    <div id="progress-bar-container">
-        <div id="progress-bar"></div>
-    </div>
-    <div id="record-timer"></div>
+        <div id="overlay-photobooth" class="mode-overlay">
+            <div id="photo-instruction"></div>
+            <div id="photo-countdown-display"></div>
+            <div id="strip-preview">
+                <div class="strip-slot" id="strip-slot-0"></div>
+                <div class="strip-slot" id="strip-slot-1"></div>
+                <div class="strip-slot" id="strip-slot-2"></div>
+            </div>
+        </div>
 
-    <!-- Dance music tracks injected at boot from /api/dance-tracks
+        <div id="overlay-video-message" class="mode-overlay">
+            <div id="video-message-text"></div>
+        </div>
+
+        <!-- PANIC state (secret rapid-press easter egg) -->
+        <div id="screen-panic" class="screen">
+            <div id="panic-message"></div>
+        </div>
+
+        <!-- QR state -->
+        <div id="screen-qr" class="screen">
+            <div id="qr-screen">
+                <img id="qr-logo" class="cmd-logo" alt="CMD LWD" />
+                <p id="qr-label">Scan to keep your memory!</p>
+                <div id="qr-loading">Saving...</div>
+                <img id="qr-image" alt="QR code" style="display: none" />
+                <p id="qr-url"></p>
+                <p id="qr-countdown"></p>
+            </div>
+        </div>
+
+        <!-- Persistent UI elements -->
+        <div id="corner-logo">
+            <img id="corner-logo-img" alt="CMD LWD" />
+        </div>
+        <div id="progress-bar-container">
+            <div id="progress-bar"></div>
+        </div>
+        <div id="record-timer"></div>
+
+        <!-- Dance music tracks injected at boot from /api/dance-tracks
          (long-form streaming audio stays on HTMLAudioElement; SFX go through Howler) -->
-    <div id="dance-audio-pool" hidden></div>
+        <div id="dance-audio-pool" hidden></div>
 
-    <script src="howler.min.js"></script>
-    <script src="confetti.js"></script>
-    <script src="script.js"></script>
-</body>
+        <script src="howler.min.js"></script>
+        <script src="confetti.js"></script>
+        <script src="script.js"></script>
+    </body>
 </html>
