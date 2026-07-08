@@ -287,7 +287,6 @@ function handleEnterPress() {
 
     switch (state) {
         case 'IDLE': transitionTo('SPIN'); break;
-        case 'SPIN': stopWheelAndLock();   break;
         case 'QR':   transitionTo('IDLE'); break;
     }
 }
@@ -405,7 +404,7 @@ function stopCameraStream() {
 
 // ── Vertical selector ────────────────────────
 function startSpin() {
-    enterDisabled = false;
+    enterDisabled = true;
     buildSelectorItems();
 
     selectorAnim = {
@@ -416,6 +415,10 @@ function startSpin() {
         phase: 'spinning'
     };
     drawSelector();
+
+    // Auto-stop after a random duration (2–4 s)
+    const spinDuration = 2000 + Math.random() * 2000;
+    setTimeout(() => stopWheelAndLock(), spinDuration);
 
     const tick = () => {
         selectorAnim.offset += selectorAnim.velocity;
