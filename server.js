@@ -19,6 +19,8 @@ const uploadsDir = path.join(DATA_DIR, 'uploads');
 const dancefloorDir = path.join(DATA_DIR, 'dancefloor');
 const videoThumbsDir = path.join(DATA_DIR, 'video-thumbs');
 const CONFIG_PATH = path.join(DATA_DIR, 'config.json');
+const SESSIONS_PATH = path.join(DATA_DIR, 'sessions.json');
+const FILE_META_PATH = path.join(DATA_DIR, 'file-meta.json');
 
 // Logo uploads: use project's public/images/logo-uploads for local dev,
 // or /data/public/images/logo-uploads on Fly.io where DATA_DIR=/data
@@ -313,6 +315,37 @@ function writeConfig(cfg) {
     fs.writeFileSync(CONFIG_PATH, JSON.stringify(cfg, null, 2));
 }
 
+// ── Sessions & file-meta helpers ──────────────────────────────────────────────
+function readSessions() {
+    try {
+        if (fs.existsSync(SESSIONS_PATH)) {
+            return JSON.parse(fs.readFileSync(SESSIONS_PATH, 'utf8'));
+        }
+    } catch {}
+    return { sessions: [], activeSessionId: null };
+}
+function writeSessions(data) {
+    fs.writeFileSync(SESSIONS_PATH, JSON.stringify(data, null, 2));
+}
+function readFileMeta() {
+    try {
+        if (fs.existsSync(FILE_META_PATH)) {
+            return JSON.parse(fs.readFileSync(FILE_META_PATH, 'utf8'));
+        }
+    } catch {}
+    return {};
+}
+function writeFileMeta(meta) {
+    fs.writeFileSync(FILE_META_PATH, JSON.stringify(meta, null, 2));
+}
+function tagFile(filename) {
+    const { activeSessionId } = readSessions();
+    if (!activeSessionId) return;
+    const meta = readFileMeta();
+    meta[filename] = { sessionId: activeSessionId, uploadedAt: new Date().toISOString() };
+    writeFileMeta(meta);
+}
+
 // ── Security middleware ───────────────────────────────────────────────────────
 app.use(helmet({
     // Allow inline scripts/styles needed by the kiosk UI
@@ -375,6 +408,7 @@ app.post('/api/upload/video', uploadLimiter, upload.single('video'), async (req,
         const filePath = path.join(uploadsDir, finalFilename);
 
         fs.writeFileSync(filePath, req.file.buffer);
+        tagFile(finalFilename);
 
         if (mode === 'dance') {
             spawnCutoutJob(filePath, id);
@@ -642,6 +676,7 @@ app.post('/api/upload/strip', uploadLimiter, upload.single('strip'), async (req,
         const finalFilename = `strip_${id}.png`;
         const filePath = path.join(uploadsDir, finalFilename);
         fs.writeFileSync(filePath, req.file.buffer);
+        tagFile(finalFilename);
 
         const stripUrl = `${BASE_URL}/s/${id}`;
         const qrDataUrl = await QRCode.toDataURL(stripUrl, {
@@ -779,6 +814,7 @@ app.post('/api/upload/screenshot', uploadLimiter, upload.single('screenshot'), (
         const filePath = path.join(uploadsDir, finalFilename);
 
         fs.writeFileSync(filePath, req.file.buffer);
+        tagFile(finalFilename);
 
         res.json({
             success: true,
@@ -1046,12 +1082,18 @@ app.put('/api/config', adminLimiter, requireAdmin, (req, res) => {
 app.get('/api/uploads', adminLimiter, requireAdmin, (req, res) => {
     try {
         const files = fs.readdirSync(uploadsDir);
+        const meta = readFileMeta();
         const list = files
             .filter(f => !f.startsWith('.'))
             .map(name => {
                 try {
                     const stat = fs.statSync(path.join(uploadsDir, name));
-                    return { name, size: stat.size, mtime: stat.mtime.toISOString() };
+                    return {
+                        name,
+                        size: stat.size,
+                        mtime: stat.mtime.toISOString(),
+                        sessionId: (meta[name] || {}).sessionId || null
+                    };
                 } catch (e) {
                     return null;
                 }
@@ -1131,6 +1173,91 @@ app.post('/api/uploads/:filename/cutouts', adminLimiter, requireAdmin, (req, res
     } catch (e) {
         res.status(500).json({ success: false, error: e.message });
     }
+});
+
+// ── Sessions API ──────────────────────────────────────────────────────────────
+
+app.get('/api/sessions', adminLimiter, requireAdmin, (req, res) => {
+    const data = readSessions();
+    const meta = readFileMeta();
+    const sessions = data.sessions.map(s => {
+        const fileCount = Object.values(meta).filter(m => m.sessionId === s.id).length;
+        return { ...s, fileCount };
+    });
+    res.json({ sessions, activeSessionId: data.activeSessionId });
+});
+
+app.post('/api/sessions', adminLimiter, requireAdmin, express.json(), (req, res) => {
+    const { title } = req.body || {};
+    if (!title || typeof title !== 'string' || !title.trim()) {
+        return res.status(400).json({ error: 'title required' });
+    }
+    const data = readSessions();
+    // Stop any currently active session first
+    if (data.activeSessionId) {
+        const active = data.sessions.find(s => s.id === data.activeSessionId);
+        if (active && !active.endedAt) active.endedAt = new Date().toISOString();
+    }
+    const session = {
+        id: crypto.randomUUID(),
+        title: title.trim(),
+        startedAt: new Date().toISOString(),
+        endedAt: null
+    };
+    data.sessions.push(session);
+    data.activeSessionId = session.id;
+    writeSessions(data);
+    res.json({ success: true, session, activeSessionId: data.activeSessionId });
+});
+
+app.put('/api/sessions/:id', adminLimiter, requireAdmin, express.json(), (req, res) => {
+    const data = readSessions();
+    const session = data.sessions.find(s => s.id === req.params.id);
+    if (!session) return res.status(404).json({ error: 'Session not found' });
+    if (req.body.title !== undefined) session.title = String(req.body.title).trim();
+    if (req.body.stop) {
+        session.endedAt = new Date().toISOString();
+        if (data.activeSessionId === session.id) data.activeSessionId = null;
+    }
+    writeSessions(data);
+    res.json({ success: true, session, activeSessionId: data.activeSessionId });
+});
+
+app.delete('/api/sessions/:id', adminLimiter, requireAdmin, (req, res) => {
+    const data = readSessions();
+    const idx = data.sessions.findIndex(s => s.id === req.params.id);
+    if (idx === -1) return res.status(404).json({ error: 'Session not found' });
+    if (data.activeSessionId === req.params.id) data.activeSessionId = null;
+    data.sessions.splice(idx, 1);
+    writeSessions(data);
+    res.json({ success: true });
+});
+
+app.get('/api/sessions/:id/download', adminLimiter, requireAdmin, (req, res) => {
+    const data = readSessions();
+    const session = data.sessions.find(s => s.id === req.params.id);
+    if (!session) return res.status(404).json({ error: 'Session not found' });
+
+    const meta = readFileMeta();
+    const files = Object.entries(meta)
+        .filter(([, m]) => m.sessionId === req.params.id)
+        .map(([filename]) => filename)
+        .filter(f => fs.existsSync(path.join(uploadsDir, f)));
+
+    if (files.length === 0) {
+        return res.status(404).json({ error: 'No files in session' });
+    }
+
+    const safeName = session.title.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+    const date = new Date().toISOString().slice(0, 10);
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `attachment; filename="session-${safeName}-${date}.zip"`);
+
+    const archive = archiver('zip', { zlib: { level: 1 } });
+    archive.on('error', err => { console.error('archive error:', err); res.end(); });
+    archive.pipe(res);
+    files.forEach(f => archive.file(path.join(uploadsDir, f), { name: f }));
+    archive.finalize();
 });
 
 // ── Bulk delete all uploads ───────────────────────────────────────────────────

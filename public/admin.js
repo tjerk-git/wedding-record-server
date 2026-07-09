@@ -12,6 +12,8 @@ const MODES_META = [
 
 let config = null;
 let saveTimer = null;
+let activeSessionFilter = null; // null = all uploads, string = session id
+let sessionsData = { sessions: [], activeSessionId: null };
 
 const status = {
     el: null,
@@ -39,9 +41,13 @@ async function init() {
     }
     renderModes();
     renderSettings();
+    loadSessions();
     loadUploads();
 
-    document.getElementById('reload-uploads').addEventListener('click', loadUploads);
+    document.getElementById('reload-uploads').addEventListener('click', () => {
+        loadSessions();
+        loadUploads();
+    });
 
     document.getElementById('delete-all-btn').addEventListener('click', async () => {
         if (!confirm('Delete ALL uploads? This cannot be undone.')) return;
@@ -58,6 +64,20 @@ async function init() {
         } catch (e) {
             toast('Delete failed');
         }
+    });
+
+    // Session form toggle
+    document.getElementById('new-session-btn').addEventListener('click', () => {
+        document.getElementById('new-session-form').style.display = 'flex';
+        document.getElementById('session-title-input').focus();
+    });
+    document.getElementById('cancel-session-btn').addEventListener('click', () => {
+        document.getElementById('new-session-form').style.display = 'none';
+        document.getElementById('session-title-input').value = '';
+    });
+    document.getElementById('start-session-btn').addEventListener('click', startNewSession);
+    document.getElementById('session-title-input').addEventListener('keydown', e => {
+        if (e.key === 'Enter') startNewSession();
     });
 }
 
@@ -103,7 +123,10 @@ function setupTabs() {
             document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
             btn.classList.add('active');
             document.getElementById('tab-' + tab).classList.add('active');
-            if (tab === 'uploads') loadUploads();
+            if (tab === 'uploads') {
+                loadSessions();
+                loadUploads();
+            }
         });
     });
 }
@@ -369,6 +392,165 @@ function renderSettings() {
     });
 }
 
+// ── Sessions panel ────────────────────────────
+async function loadSessions() {
+    try {
+        const r = await fetch('/api/sessions');
+        if (!r.ok) return;
+        sessionsData = await r.json();
+        renderSessionsList();
+    } catch {}
+}
+
+function renderSessionsList() {
+    const container = document.getElementById('sessions-list');
+    const { sessions, activeSessionId } = sessionsData;
+
+    if (sessions.length === 0) {
+        container.innerHTML = '<p class="empty-state sessions-empty">No sessions yet. Start one to group recordings together.</p>';
+        return;
+    }
+
+    container.innerHTML = '';
+    // "All uploads" row
+    const allRow = document.createElement('div');
+    allRow.className = 'session-row' + (activeSessionFilter === null ? ' selected' : '');
+    allRow.innerHTML = `
+        <span class="session-row-dot" style="background:rgba(255,255,255,0.25)"></span>
+        <span class="session-row-title">All uploads</span>
+        <span class="session-row-count">${countAllFiles()} files</span>
+        <span class="session-row-actions">
+            <a class="btn-secondary btn-sm" href="/api/uploads/download-all" download title="Download all">↓</a>
+        </span>
+    `;
+    allRow.addEventListener('click', (e) => {
+        if (e.target.closest('.session-row-actions')) return;
+        setSessionFilter(null);
+    });
+    container.appendChild(allRow);
+
+    // Session rows — newest first
+    [...sessions].reverse().forEach(s => {
+        const isActive = s.id === activeSessionId;
+        const isSelected = activeSessionFilter === s.id;
+        const row = document.createElement('div');
+        row.className = 'session-row' + (isSelected ? ' selected' : '') + (isActive ? ' is-active' : '');
+        const startDate = new Date(s.startedAt).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' });
+        const endLabel = s.endedAt
+            ? new Date(s.endedAt).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' })
+            : 'ongoing';
+        row.innerHTML = `
+            <span class="session-row-dot${isActive ? ' live' : ''}"></span>
+            <span class="session-row-info">
+                <span class="session-row-title">${escapeHtml(s.title)}</span>
+                <span class="session-row-dates">${startDate} → ${endLabel}</span>
+            </span>
+            <span class="session-row-count">${s.fileCount} file${s.fileCount !== 1 ? 's' : ''}</span>
+            <span class="session-row-actions">
+                ${isActive ? `<button class="btn-danger btn-sm stop-session-btn" data-id="${s.id}">■ Stop</button>` : ''}
+                <a class="btn-secondary btn-sm" href="/api/sessions/${s.id}/download" download title="Download session">↓</a>
+                <button class="btn-secondary btn-sm delete-session-btn" data-id="${s.id}" title="Delete session">×</button>
+            </span>
+        `;
+        row.addEventListener('click', (e) => {
+            if (e.target.closest('.session-row-actions')) return;
+            setSessionFilter(s.id);
+        });
+        container.appendChild(row);
+    });
+
+    // Wire action buttons
+    container.querySelectorAll('.stop-session-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            await stopSession(btn.dataset.id);
+        });
+    });
+    container.querySelectorAll('.delete-session-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            if (!confirm('Delete this session? (Files are kept, only session metadata is removed.)')) return;
+            await deleteSession(btn.dataset.id);
+        });
+    });
+}
+
+function countAllFiles() {
+    // We don't have a total count here without an extra fetch; use 0 as placeholder
+    // The loadUploads result will show the real count — omit from "all" row for simplicity
+    return '—';
+}
+
+function setSessionFilter(sessionId) {
+    activeSessionFilter = sessionId;
+    // Update selection highlight
+    document.querySelectorAll('.session-row').forEach(r => r.classList.remove('selected'));
+    if (sessionId === null) {
+        document.querySelector('.session-row')?.classList.add('selected');
+    } else {
+        document.querySelectorAll('.session-row').forEach(r => {
+            const btn = r.querySelector(`[data-id="${sessionId}"]`);
+            if (btn) r.classList.add('selected');
+        });
+    }
+    // Update downloads subhead
+    const dlBtn = document.getElementById('download-session-btn');
+    const ctxLabel = document.getElementById('uploads-context-label');
+    if (sessionId) {
+        const s = sessionsData.sessions.find(s => s.id === sessionId);
+        ctxLabel.textContent = s ? s.title : 'Session';
+        dlBtn.href = `/api/sessions/${sessionId}/download`;
+        dlBtn.style.display = '';
+    } else {
+        ctxLabel.textContent = 'All uploads';
+        dlBtn.style.display = 'none';
+    }
+    loadUploads();
+}
+
+async function startNewSession() {
+    const input = document.getElementById('session-title-input');
+    const title = input.value.trim();
+    if (!title) { input.focus(); return; }
+    try {
+        const r = await fetch('/api/sessions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title })
+        });
+        const j = await r.json();
+        if (!r.ok) { toast('Failed: ' + (j.error || 'unknown')); return; }
+        input.value = '';
+        document.getElementById('new-session-form').style.display = 'none';
+        toast(`Session "${title}" started`);
+        sessionsData = j.success ? { ...sessionsData, sessions: [...sessionsData.sessions, j.session], activeSessionId: j.activeSessionId } : sessionsData;
+        await loadSessions();
+        setSessionFilter(j.session.id);
+    } catch { toast('Failed to start session'); }
+}
+
+async function stopSession(id) {
+    try {
+        const r = await fetch(`/api/sessions/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ stop: true })
+        });
+        const j = await r.json();
+        if (!r.ok) { toast('Failed: ' + (j.error || 'unknown')); return; }
+        toast('Session stopped');
+        await loadSessions();
+    } catch { toast('Failed to stop session'); }
+}
+
+async function deleteSession(id) {
+    try {
+        const r = await fetch(`/api/sessions/${id}`, { method: 'DELETE' });
+        if (!r.ok) { toast('Delete failed'); return; }
+        toast('Session deleted');
+        if (activeSessionFilter === id) setSessionFilter(null);
+        await loadSessions();
+    } catch { toast('Failed to delete session'); }
+}
+
 // ── Uploads panel ────────────────────────────
 async function loadUploads() {
     const container = document.getElementById('uploads-list');
@@ -376,9 +558,15 @@ async function loadUploads() {
     try {
         const r = await fetch('/api/uploads');
         const data = await r.json();
-        const uploads = data.uploads || [];
+        let uploads = data.uploads || [];
+
+        // Filter by active session if one is selected
+        if (activeSessionFilter !== null) {
+            uploads = uploads.filter(f => f.sessionId === activeSessionFilter);
+        }
+
         if (uploads.length === 0) {
-            container.innerHTML = '<p class="empty-state">No uploads yet.</p>';
+            container.innerHTML = '<p class="empty-state">No uploads' + (activeSessionFilter ? ' in this session' : ' yet') + '.</p>';
             return;
         }
         container.innerHTML = '';
@@ -438,7 +626,7 @@ function renderUploadTile(file) {
         tile.addEventListener('mouseenter', () => { v.play().catch(() => {}); });
         tile.addEventListener('mouseleave', () => { v.pause(); v.currentTime = 0; });
         // Open share page
-        const shareUrl = '/v/' + file.name.replace(/\.(webm|mp4|mov)$/i, '');
+        const shareUrl = '/v/' + file.name.replace(/\.(webm|mp4|mov)$/i, '').split('__')[0];
         tile.appendChild(metaRow(file, dateStr, shareUrl, url));
     } else if (/\.(png|jpe?g|gif|webp)$/i.test(file.name)) {
         tile.innerHTML = `<img src="${url}" alt="" loading="lazy">`;

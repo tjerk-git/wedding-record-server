@@ -45,14 +45,38 @@
         <section id="tab-uploads" class="tab-panel">
             <div class="section-head">
                 <h2>Uploads</h2>
-                <p>Recordings and photo strips collected from the kiosk.</p>
-                <div class="section-head-actions">
-                    <button id="reload-uploads"   class="btn-secondary">Refresh</button>
-                    <a      id="download-all-btn" class="btn-secondary" href="/api/uploads/download-all" download>Download all</a>
-                    <button id="delete-all-btn"   class="btn-danger">Delete all</button>
-                </div>
+                <p>Browse recordings and photo strips by session.</p>
             </div>
-            <div id="uploads-list"></div>
+
+            <!-- Sessions panel -->
+            <div id="sessions-panel">
+                <div class="sessions-toolbar">
+                    <h3 class="sessions-title">Sessions</h3>
+                    <button id="new-session-btn" class="btn-secondary btn-sm">+ New Session</button>
+                </div>
+                <div id="new-session-form" class="sessions-form" style="display:none">
+                    <input id="session-title-input" type="text" placeholder="Session title (e.g. Wedding Reception)">
+                    <div class="sessions-form-actions">
+                        <button id="cancel-session-btn" class="btn-secondary btn-sm">Cancel</button>
+                        <button id="start-session-btn" class="btn-primary btn-sm">Start</button>
+                    </div>
+                </div>
+                <div id="sessions-list"></div>
+            </div>
+
+            <!-- Files section -->
+            <div id="uploads-section">
+                <div class="uploads-subhead">
+                    <span id="uploads-context-label">All uploads</span>
+                    <div class="section-head-actions">
+                        <button id="reload-uploads" class="btn-secondary">Refresh</button>
+                        <a id="download-session-btn" class="btn-secondary" style="display:none" download>↓ Session</a>
+                        <a id="download-all-btn" class="btn-secondary" href="/api/uploads/download-all" download>↓ All</a>
+                        <button id="delete-all-btn" class="btn-danger">Delete all</button>
+                    </div>
+                </div>
+                <div id="uploads-list"></div>
+            </div>
         </section>
     </main>
 

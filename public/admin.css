@@ -406,6 +406,157 @@ input[type="number"] { width: 96px; }
 
 .field.full { grid-column: 1 / -1; }
 
+/* ── Sessions panel ───────────────────────────────────── */
+
+#sessions-panel {
+  margin-bottom: 2rem;
+}
+
+.sessions-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.sessions-title {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--fg-3);
+}
+
+.btn-sm {
+  padding: 0.35rem 0.75rem;
+  font-size: 0.78rem;
+}
+
+.sessions-form {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  margin-bottom: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.sessions-form input[type="text"] {
+  flex: 1;
+  min-width: 200px;
+}
+
+.sessions-form-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.sessions-empty {
+  padding: 1rem 0 0.5rem;
+}
+
+#sessions-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.session-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  background: var(--tile);
+  border: 1px solid var(--bd);
+  border-radius: 10px;
+  padding: 0.625rem 0.875rem;
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease;
+  flex-wrap: wrap;
+}
+
+.session-row:hover { background: var(--tile-2); }
+
+.session-row.selected {
+  border-color: var(--color-purple);
+  background: rgba(129, 38, 255, 0.08);
+}
+
+.session-row.is-active {
+  border-color: rgba(110, 227, 111, 0.4);
+}
+
+.session-row-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.2);
+  flex-shrink: 0;
+}
+
+.session-row-dot.live {
+  background: #6FE36F;
+  box-shadow: 0 0 0 3px rgba(111, 227, 111, 0.25);
+  animation: pulse-dot 1.8s ease-in-out infinite;
+}
+
+@keyframes pulse-dot {
+  0%, 100% { box-shadow: 0 0 0 3px rgba(111, 227, 111, 0.25); }
+  50%       { box-shadow: 0 0 0 6px rgba(111, 227, 111, 0.10); }
+}
+
+.session-row-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.session-row-title {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--fg-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.session-row-dates {
+  font-size: 0.72rem;
+  color: var(--fg-3);
+  font-family: ui-monospace, 'SF Mono', monospace;
+}
+
+.session-row-count {
+  font-size: 0.75rem;
+  color: var(--fg-3);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.session-row-actions {
+  display: flex;
+  gap: 0.35rem;
+  flex-shrink: 0;
+  align-items: center;
+}
+
+/* ── Uploads subhead ──────────────────────────────────── */
+
+.uploads-subhead {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+
+#uploads-context-label {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--fg-1);
+  flex: 1;
+}
+
 /* ── Uploads grid ─────────────────────────────────────── */
 
 #uploads-list {
